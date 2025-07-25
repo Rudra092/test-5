@@ -212,7 +212,7 @@
       <a href="#">🖼️ Photos</a>
       <a href="#">🔔 Notifications</a>
     </div>
-
+<div id="friendRequestsContainer"></div>
     <div class="feed">
       <div class="post-box">
         <textarea id="postInput" rows="3" placeholder="What's on your mind?"></textarea>
@@ -320,6 +320,24 @@ function sendRequest(name, id) {
   document.getElementById('friendResults').innerHTML = html;
 }
 
+async function loadFriendRequests() {
+  const res = await fetch(`/requests/${user._id}`);
+  const requests = await res.json();
+  document.getElementById("friendRequestsContainer").innerHTML = requests.map(r => `
+    <div class="post">
+      <strong>${r.username}</strong>
+      <button class="btn" onclick="acceptRequest('${r._id}')">Accept</button>
+    </div>
+  `).join('');
+}
+async function acceptRequest(senderId) {
+  const res = await fetch(`/accept-request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: senderId, to: user._id })
+  });
+  if (res.ok) loadFriendRequests(); // refresh
+}
 
 function acceptRequest(name, id) {
   alert(`${name} accepted your request!`);
