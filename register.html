@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Register</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef2f3;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: #fff;
+      padding: 2rem;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 450px;
+      text-align: center;
+    }
+    h2 {
+      margin-bottom: 1rem;
+    }
+    input {
+      width: 90%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .link {
+      margin-top: 1rem;
+      display: block;
+      color: #007bff;
+      text-decoration: none;
+    }
+    .link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Create an Account</h2>
+    <form id="registerForm">
+      <input type="text" name="username" id="username" placeholder="Username" required /><br/>
+<input type="password" name="password" id="password" placeholder="Password" required /><br/>
+<input type="email" name="email" id="email" placeholder="Email" required /><br/>
+<input type="text" name="fullname" id="fullname" placeholder="Full Name" required /><br/>
+<input type="tel" name="phone" id="phone" placeholder="Phone Number" /><br/>
+      <button type="submit">Register</button>
+    </form>
+    <a class="link" href="index.html">Already have an account? Login</a>
+  </div>
+
+<script>
+  document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const response = await fetch('https://test-4-jqdf.onrender.com/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.json();
+      alert(result.message);
+
+      if (result.success) {
+        window.location.href = 'index.html';
+      }
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Something went wrong while registering.');
+    }
+  });
+</script>
+
+</body>
+</html>
