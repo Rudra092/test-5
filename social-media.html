@@ -1,5 +1,3 @@
-<!-- Replace your existing social-media.html with this code -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -97,7 +95,7 @@
 <div class="container">
   <div class="sidebar">
     <a href="chatnew.html">💬 Messages</a><br>
-    <a href="#">👤 Friends</a><br>
+    <a href="#" onclick="showFriends()">👤 Friends</a><br>
     <a href="#">🖼️ Photos</a><br>
     <a href="#">🔔 Notifications</a>
   </div>
@@ -146,6 +144,14 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Friends Modal -->
+<div id="friendsModal" style="display:none; position:fixed; top:80px; left:50%; transform:translateX(-50%);
+ background:#fff; border-radius:10px; padding:20px; max-width:400px; width:90%; box-shadow:0 0 10px rgba(0,0,0,0.2); z-index:999;">
+  <h3>Your Friends</h3>
+  <div id="friendsList"></div>
+  <button onclick="closeFriends()" class="btn" style="margin-top:10px;">Close</button>
 </div>
 
 <script>
@@ -283,9 +289,28 @@ async function uploadPhoto(event) {
   }
 }
 
+async function showFriends() {
+  const res = await fetch(`${API}/friends/${user._id}`);
+  const friends = await res.json();
+  document.getElementById("friendsList").innerHTML = friends.length
+    ? friends.map(f => `
+        <div style="margin-bottom:10px;">
+          <strong>${f.username}</strong>
+          <a href="chatnew.html?to=${f._id}" class="btn" style="margin-left:10px;">Chat</a>
+        </div>
+      `).join('')
+    : "<p>You have no friends yet.</p>";
+  document.getElementById("friendsModal").style.display = "block";
+}
+
+function closeFriends() {
+  document.getElementById("friendsModal").style.display = "none";
+}
+
 // Load on page
 loadSuggestions();
 loadRequests();
 </script>
+
 </body>
 </html>

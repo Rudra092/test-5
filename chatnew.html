@@ -18,7 +18,6 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      flex-wrap: wrap;
     }
 
     .navbar h2 {
@@ -35,7 +34,6 @@
       border-radius: 20px;
       cursor: pointer;
       font-size: 14px;
-      transition: background 0.2s;
     }
 
     .home-btn:hover {
@@ -43,7 +41,7 @@
     }
 
     .page-wrapper {
-      max-width: 1330px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 0 10px;
     }
@@ -61,13 +59,11 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.05);
     }
 
-.chat-list {
-  flex-shrink: 0;
-  width: 300px;
-  max-height: 80vh;
-  overflow-y: auto;
-  box-sizing: border-box;
-}
+    .chat-list {
+      width: 300px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
 
     .chat-preview {
       padding: 10px;
@@ -79,23 +75,20 @@
       background: #f5f5f5;
     }
 
-.chat-box {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  height: 80vh;
-  width: 100%;
-  box-sizing: border-box;
-}
+    .chat-box {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 80vh;
+    }
 
-.messages {
-  flex: 1;
-  overflow-y: auto;
-  margin-bottom: 10px;
-  display: flex;
-  flex-direction: column;
-  max-height: calc(80vh - 120px); /* adjust if needed for input height */
-}
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+    }
 
     .message {
       margin: 5px 0;
@@ -147,39 +140,34 @@
         gap: 10px;
       }
 
-.container {
-  flex-direction: column;
-  gap: 20px;
-}
+      .container {
+        flex-direction: column;
+        gap: 20px;
+      }
 
-      .chat-list {
-    width: 100%;
-    max-height: 300px; /* Optional: reduce height for small screens */
-    overflow-y: auto;
-  }
-.chat-box {
-    width: 100%;
-    max-width: 100%;
-  }
+      .chat-list, .chat-box {
+        width: 100%;
+        max-width: 100%;
+      }
 
-  .input-area {
-    flex-direction: column;
-    gap: 10px;
-  }
+      .input-area {
+        flex-direction: column;
+        gap: 10px;
+      }
 
-  .input-area input,
-  .input-area button {
-    width: 100%;
-  }
+      .input-area input,
+      .input-area button {
+        width: 100%;
+      }
 
-  .message {
-    max-width: 100%;
-  }
+      .message {
+        max-width: 100%;
+      }
 
-  .chat-box h3 {
-    text-align: center;
-    font-size: 18px;
-  }
+      .chat-box h3,
+      .chat-list h3 {
+        text-align: center;
+      }
     }
   </style>
 </head>
@@ -187,18 +175,18 @@
 
   <div class="navbar">
     <h2>Soulmate - Chats</h2>
-    <button class="home-btn" onclick="window.location.href='home.html'">🏠 Home</button>
+    <button class="home-btn" onclick="window.location.href='social-media.html'">🏠 Home</button>
   </div>
 
   <div class="page-wrapper">
     <div class="container">
       <div class="chat-list">
-        <h3>Your Chats</h3>
+        <h3>Your Friends</h3>
         <div id="chatList"></div>
       </div>
 
       <div class="chat-box">
-        <h3 id="chatTitle">Select a chat</h3>
+        <h3 id="chatTitle">Select a friend</h3>
         <div class="messages" id="messageContainer"></div>
         <div class="input-area">
           <input type="text" id="messageInput" placeholder="Type a message...">
@@ -208,76 +196,79 @@
     </div>
   </div>
 
-  <script>
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (!user) location.href = 'index.html';
+<script>
+const API = "https://test-5-jdfo.onrender.com";
+const user = JSON.parse(localStorage.getItem('user'));
+if (!user) location.href = 'index.html';
 
-    const params = new URLSearchParams(location.search);
-    const friendId = params.get('to');
-    let currentFriend = null;
+const params = new URLSearchParams(location.search);
+const friendId = params.get('to');
+let currentFriend = null;
+let currentFriendName = "";
 
-    async function loadChats() {
-      const res = await fetch(`https://test-5-jdfo.onrender.com/chats/${user._id}`);
-      const data = await res.json();
-      const chatList = document.getElementById('chatList');
-      chatList.innerHTML = '';
+async function loadFriends() {
+  const res = await fetch(`${API}/friends/${user._id}`);
+  const friends = await res.json();
+  const chatList = document.getElementById("chatList");
+  chatList.innerHTML = "";
 
-      data.chats.forEach(chat => {
-        const div = document.createElement('div');
-        div.className = 'chat-preview';
-        div.innerHTML = `
-          <div onclick="selectChat('${chat.friend._id}', '${chat.friend.username}')">
-            <strong>${chat.friend.username}</strong><br>
-            <small>${chat.lastMessage || 'Say hi!'}</small>
-          </div>`;
-        chatList.appendChild(div);
-      });
-    }
+  friends.forEach(friend => {
+    const div = document.createElement("div");
+    div.className = "chat-preview";
+    div.innerHTML = `
+      <div onclick="selectChat('${friend._id}', '${friend.username}')">
+        <strong>${friend.username}</strong>
+      </div>
+    `;
+    chatList.appendChild(div);
+  });
+}
 
-    async function selectChat(id, name) {
-      currentFriend = id;
-      document.getElementById('chatTitle').textContent = `Chat with ${name}`;
-      const res = await fetch(`https://test-5-jdfo.onrender.com/messages/${user._id}/${id}`);
-      const data = await res.json();
+async function selectChat(friendId, friendName) {
+  currentFriend = friendId;
+  currentFriendName = friendName;
+  document.getElementById("chatTitle").textContent = `Chat with ${friendName}`;
 
-      const container = document.getElementById('messageContainer');
-      container.innerHTML = '';
-      data.messages.forEach(msg => {
-        const div = document.createElement('div');
-        div.className = 'message' + (msg.from === user._id ? ' me' : '');
-        div.textContent = msg.text;
-        container.appendChild(div);
-      });
-      container.scrollTop = container.scrollHeight;
-    }
+  const res = await fetch(`${API}/messages/${user._id}/${friendId}`);
+  const data = await res.json();
 
-    async function sendMessage() {
-      const input = document.getElementById('messageInput');
-      const text = input.value.trim();
-      if (!text || !currentFriend) return;
+  const container = document.getElementById("messageContainer");
+  container.innerHTML = "";
+  data.messages.forEach(msg => {
+    const div = document.createElement("div");
+    div.className = "message" + (msg.from === user._id ? " me" : "");
+    div.textContent = msg.text;
+    container.appendChild(div);
+  });
+  container.scrollTop = container.scrollHeight;
+}
 
-      const res = await fetch('https://test-5-jdfo.onrender.com/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: user._id, to: currentFriend, text })
-      });
+async function sendMessage() {
+  const input = document.getElementById("messageInput");
+  const text = input.value.trim();
+  if (!text || !currentFriend) return;
 
-      if (res.ok) {
-        input.value = '';
-        selectChat(currentFriend, document.getElementById('chatTitle').textContent.split(' ')[2]);
-      }
-    }
+  const res = await fetch(`${API}/message`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ from: user._id, to: currentFriend, text })
+  });
 
-    loadChats();
+  if (res.ok) {
+    input.value = '';
+    selectChat(currentFriend, currentFriendName);
+  }
+}
 
-    if (friendId) {
-      fetch(`https://test-5-jdfo.onrender.com/user/${friendId}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.user) selectChat(friendId, data.user.username);
-        });
-    }
-  </script>
+loadFriends();
+if (friendId) {
+  fetch(`${API}/user/${friendId}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.user) selectChat(friendId, data.user.username);
+    });
+}
+</script>
 
 </body>
 </html>
