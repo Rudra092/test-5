@@ -1,137 +1,70 @@
+<!-- Replace your existing social-media.html with this code -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Soulmate - Home</title>
+  <title>Soulmate</title>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
       background-color: #f0f2f5;
-      color: #1c1e21;
-    }
-    .page-wrapper {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    .navbar-container {
-      background-color: #fff;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      border-bottom: 1px solid #ddd;
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-      width: 100%;
     }
     .navbar {
-      max-width: 1200px;
-      margin: 0 auto;
+      background: #fff;
       padding: 10px 20px;
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
+      align-items: center;
+      border-bottom: 1px solid #ccc;
     }
-    .navbar-left {
-      font-size: 22px;
+    .navbar h1 {
+      margin: 0;
       color: #1877f2;
-      font-weight: bold;
     }
-    .navbar-center {
+    .navbar .center {
       display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 8px;
-      flex: 1;
-    }
-    .navbar-center input {
-      padding: 6px 12px;
-      border: 1px solid #ccc;
-      border-radius: 20px;
-      font-size: 14px;
-      width: 200px;
-      outline: none;
-    }
-    .navbar-right {
-      display: flex;
-      align-items: center;
       gap: 10px;
     }
+    .navbar input {
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid #ccc;
+    }
     .navbar button {
+      padding: 6px 12px;
+      border-radius: 20px;
       background: #1877f2;
       color: white;
       border: none;
-      padding: 6px 14px;
-      border-radius: 20px;
       cursor: pointer;
-      font-size: 14px;
-    }
-    .navbar button:hover {
-      background: #165dc1;
     }
     .container {
+      max-width: 1200px;
+      margin: auto;
       display: flex;
       gap: 20px;
       padding: 20px;
-      justify-content: center;
     }
-    .sidebar {
+    .sidebar, .rightbar {
       width: 250px;
       background: #fff;
-      padding: 20px;
       border-radius: 10px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      order: 3;
-    }
-    .rightbar {
-      width: 250px;
-      background: #fff;
       padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      order: 1;
-    }
-    .sidebar a {
-      display: block;
-      color: #333;
-      text-decoration: none;
-      padding: 10px;
-      border-radius: 8px;
-      transition: background 0.2s;
-    }
-    .sidebar a:hover {
-      background-color: #f0f2f5;
     }
     .feed {
       flex: 1;
       max-width: 600px;
-      order: 2;
     }
-    .post-box, .post, .profile-card, #friendResults {
+    .card {
       background: #fff;
-      border-radius: 10px;
       padding: 15px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      margin-bottom: 20px;
-    }
-    textarea {
-      width: 100%;
-      border: 1px solid #ccc;
       border-radius: 10px;
-      padding: 10px;
-      font-size: 15px;
-      resize: none;
-      outline: none;
-    }
-    .post strong {
-      color: #050505;
-      font-size: 16px;
-    }
-    .post p {
-      margin-top: 8px;
-      font-size: 14px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .btn {
       background: #1877f2;
@@ -139,291 +72,220 @@
       border: none;
       padding: 8px 16px;
       border-radius: 6px;
-      font-size: 14px;
       cursor: pointer;
       margin-top: 10px;
     }
     .btn:hover {
-      background-color: #166fe5;
+      background: #145fd1;
     }
-
-@media (max-width: 768px) {
-  .navbar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .navbar-center {
-    flex: none;
-    justify-content: center;
-    width: 100%;
-  }
-  .navbar-center input {
-    width: 100%;
-    max-width: 300px;
-  }
-  .navbar-right {
-    justify-content: flex-end;
-  }
-  .container {
-    flex-direction: column;
-    align-items: center;
-    padding: 10px;
-  }
-
-  .rightbar {
-    width: 100%;
-    order: 1; /* Edit Profile card FIRST */
-  }
-  .sidebar {
-    width: 100%;
-    order: 2; /* Messages card SECOND */
-  }
-  .feed {
-    width: 100%;
-    max-width: 100%;
-    order: 3; /* Feed THIRD */
-  }
-}
-
   </style>
 </head>
 <body>
 
-<div class="navbar-container">
-  <div class="navbar">
-    <div class="navbar-left">Soulmate</div>
-    <div class="navbar-center">
-      <input type="text" id="searchFriend" placeholder="Search friends...">
-      <button onclick="searchFriend()">Search</button>
-    </div>
-    <div class="navbar-right">
-      <span id="userGreeting"></span>
-      <button onclick="logout()">Logout</button>
-    </div>
+<div class="navbar">
+  <h1>Soulmate</h1>
+  <div class="center">
+    <input type="text" id="searchFriend" placeholder="Search users...">
+    <button onclick="searchFriend()">Search</button>
+  </div>
+  <div>
+    <span id="userGreeting"></span>
+    <button onclick="logout()">Logout</button>
   </div>
 </div>
 
-<div class="page-wrapper">
-  <div class="container">
-    <div class="sidebar">
-      <a href="chatnew.html">💬 Messages</a>
-      <a href="#">👤 Friends</a>
-      <a href="#">🖼️ Photos</a>
-      <a href="#">🔔 Notifications</a>
-    </div>
-<div id="friendRequestsContainer"></div>
-    <div class="feed">
-      <div class="post-box">
-        <textarea id="postInput" rows="3" placeholder="What's on your mind?"></textarea>
-        <button class="btn" onclick="createPost()">Post</button>
-      </div>
-      <div id="postsContainer"></div>
-      <div id="friendResults"></div>
+<div class="container">
+  <div class="sidebar">
+    <a href="chatnew.html">💬 Messages</a><br>
+    <a href="#">👤 Friends</a><br>
+    <a href="#">🖼️ Photos</a><br>
+    <a href="#">🔔 Notifications</a>
+  </div>
 
-      <div class="post">
-        <h4>People You May Know</h4>
-        <div id="suggestionsContainer"></div>
-      </div>
+  <div class="feed">
+    <div class="card">
+      <textarea id="postInput" placeholder="What's on your mind?" rows="3" style="width:100%; border-radius:10px; padding:10px;"></textarea>
+      <button class="btn" onclick="createPost()">Post</button>
     </div>
 
-    <div class="rightbar">
-      <div class="profile-card">
-        <input type="file" id="profilePhoto" accept="image/*" onchange="uploadPhoto(event)" style="display: none;">
-        <label for="profilePhoto">
-          <img id="profileAvatar" src="https://ui-avatars.com/api/?name=User&background=1877f2&color=fff" alt="Avatar" style="cursor:pointer; width:100px; height:100px; border-radius:50%; object-fit:cover;">
-        </label>
-        <div id="profileView">
-          <h3 id="profileName">Full Name</h3>
-          <p id="profileEmail">Email</p>
-          <p id="profilePhone">Phone</p>
-          <button class="btn" onclick="editProfile()">Edit Profile</button>
-        </div>
-        <div id="profileEdit" style="display: none;">
-          <input id="editFullname" type="text" placeholder="Full Name"><br>
-          <input id="editEmail" type="email" placeholder="Email"><br>
-          <input id="editPhone" type="text" placeholder="Phone"><br>
-          <button class="btn" onclick="saveProfile()">Save</button>
-          <button class="btn" style="background:#ccc;color:#000" onclick="cancelEdit()">Cancel</button>
-        </div>
+    <div id="postsContainer"></div>
+
+    <div class="card">
+      <h3>Search Results</h3>
+      <div id="searchResults"></div>
+    </div>
+
+    <div class="card">
+      <h3>Friend Requests Received</h3>
+      <div id="incomingRequests"></div>
+    </div>
+
+    <div class="card">
+      <h3>People You May Know</h3>
+      <div id="suggestionsContainer"></div>
+    </div>
+  </div>
+
+  <div class="rightbar">
+    <div class="card">
+      <input type="file" id="profilePhoto" style="display:none" onchange="uploadPhoto(event)">
+      <label for="profilePhoto">
+        <img id="profileAvatar" src="" alt="Avatar" style="width:100px;height:100px;border-radius:50%;cursor:pointer;object-fit:cover;">
+      </label>
+      <h3 id="profileName"></h3>
+      <p id="profileEmail"></p>
+      <p id="profilePhone"></p>
+      <button class="btn" onclick="editProfile()">Edit Profile</button>
+
+      <div id="profileEdit" style="display:none;margin-top:10px;">
+        <input id="editFullname" placeholder="Full Name"><br>
+        <input id="editEmail" placeholder="Email"><br>
+        <input id="editPhone" placeholder="Phone"><br>
+        <button class="btn" onclick="saveProfile()">Save</button>
+        <button class="btn" style="background:#ccc;color:#000" onclick="cancelEdit()">Cancel</button>
       </div>
     </div>
   </div>
 </div>
 
 <script>
+const API = "https://test-4-jqdf.onrender.com";
 const user = JSON.parse(localStorage.getItem('user'));
-if (!user) location.href = 'index.html';
+if (!user) location.href = "index.html";
 
-document.getElementById('userGreeting').textContent = `Hi, ${user.username}`;
-document.getElementById('profileName').textContent = user.fullname || user.username;
-document.getElementById('profileEmail').textContent = user.email;
-document.getElementById('profilePhone').textContent = user.phone || '';
-document.getElementById('profileAvatar').src = user.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullname || user.username)}&background=1877f2&color=fff`;
-
-let posts = [];
-
-function createPost() {
-  const input = document.getElementById('postInput');
-  const text = input.value.trim();
-  if (!text) return alert('Post cannot be empty.');
-  const post = {
-    id: Date.now(),
-    user: user.username,
-    text,
-    likes: 0
-  };
-  posts.unshift(post);
-  renderPosts();
-  input.value = '';
-}
-
-function renderPosts() {
-  const container = document.getElementById('postsContainer');
-  container.innerHTML = '';
-  posts.forEach(post => {
-    const div = document.createElement('div');
-    div.className = 'post';
-    div.innerHTML = `<strong>${post.user}</strong><p>${post.text}</p>`;
-    container.appendChild(div);
-  });
-}
-
-async function searchFriend() {
-  const query = document.getElementById('searchFriend').value.trim();
-  if (!query) return;
-
-  const res = await fetch(`https://test-5-jdfo.onrender.com/search?q=${query}&exclude=${user._id}`);
-  const friends = await res.json();
-
-  if (friends.length === 0) {
-    document.getElementById('friendResults').innerHTML = `<div class="post">No users found.</div>`;
-    return;
-  }
-
-  document.getElementById('friendResults').innerHTML = friends.map(friend => `
-    <div class="post">
-      <strong>${friend.username}</strong>
-      <button class="btn" onclick="sendRequest('${friend.username}', '${friend._id}')">Send Friend Request</button>
-    </div>
-  `).join('');
-}
-
-
-function sendRequest(name, id) {
-  const html = `
-    <div class="post">
-      <strong>${name}</strong>
-      <p>Friend request sent to ${name}.</p>
-      <button class="btn" onclick="acceptRequest('${name}', '${id}')">Simulate Accept</button>
-    </div>`;
-  document.getElementById('friendResults').innerHTML = html;
-}
-
-async function loadFriendRequests() {
-  const res = await fetch(`/requests/${user._id}`);
-  const requests = await res.json();
-  document.getElementById("friendRequestsContainer").innerHTML = requests.map(r => `
-    <div class="post">
-      <strong>${r.username}</strong>
-      <button class="btn" onclick="acceptRequest('${r._id}')">Accept</button>
-    </div>
-  `).join('');
-}
-async function acceptRequest(senderId) {
-  const res = await fetch(`/accept-request`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: senderId, to: user._id })
-  });
-  if (res.ok) loadFriendRequests(); // refresh
-}
-
-function acceptRequest(name, id) {
-  alert(`${name} accepted your request!`);
-  document.getElementById('friendResults').innerHTML = `
-    <div class="post">
-      <strong>${name}</strong>
-      <p>You and ${name} are now friends.</p>
-      <a href="chatnew.html?to=${encodeURIComponent(id)}" class="btn">Chat Now</a>
-    </div>`;
-}
-
+document.getElementById("userGreeting").textContent = `Hi, ${user.username}`;
+document.getElementById("profileName").textContent = user.fullname || user.username;
+document.getElementById("profileEmail").textContent = user.email;
+document.getElementById("profilePhone").textContent = user.phone || "";
+document.getElementById("profileAvatar").src = user.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=1877f2&color=fff`;
 
 function logout() {
   localStorage.removeItem('user');
-  window.location.href = 'index.html';
+  location.href = "index.html";
+}
+
+function createPost() {
+  const text = document.getElementById("postInput").value.trim();
+  if (!text) return alert("Post cannot be empty.");
+  const post = { id: Date.now(), user: user.username, text };
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML = `<strong>${post.user}</strong><p>${post.text}</p>`;
+  document.getElementById("postsContainer").prepend(div);
+  document.getElementById("postInput").value = "";
+}
+
+async function searchFriend() {
+  const q = document.getElementById("searchFriend").value.trim();
+  if (!q) return;
+  const res = await fetch(`${API}/search-users?query=${encodeURIComponent(q)}`);
+  const users = await res.json();
+  const html = users
+    .filter(u => u._id !== user._id)
+    .map(u => `
+      <div class="card">
+        <strong>${u.username}</strong>
+        <button class="btn" onclick="sendRequest('${u._id}')">Add Friend</button>
+      </div>
+    `).join('');
+  document.getElementById("searchResults").innerHTML = html || "<p>No users found.</p>";
+}
+
+async function sendRequest(toId) {
+  const res = await fetch(`${API}/send-request`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ from: user._id, to: toId })
+  });
+  const result = await res.json();
+  alert(result.message || "Friend request sent");
+}
+
+async function loadRequests() {
+  const res = await fetch(`${API}/incoming-requests/${user._id}`);
+  const requests = await res.json();
+  document.getElementById("incomingRequests").innerHTML = requests.map(u => `
+    <div class="card">
+      <strong>${u.username}</strong>
+      <button class="btn" onclick="acceptRequest('${u._id}')">Accept</button>
+    </div>
+  `).join('') || "<p>No requests yet.</p>";
+}
+
+async function acceptRequest(fromId) {
+  const res = await fetch(`${API}/accept-request`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ from: fromId, to: user._id })
+  });
+  const result = await res.json();
+  alert(result.message || "Friend added");
+  loadRequests();
+}
+
+async function loadSuggestions() {
+  const res = await fetch(`${API}/suggestions/${user._id}`);
+  const suggestions = await res.json();
+  document.getElementById("suggestionsContainer").innerHTML = suggestions.map(friend => `
+    <div class="card">
+      <strong>${friend.username}</strong>
+      <p>${friend.mutual || 0} mutual friends</p>
+      <button class="btn" onclick="sendRequest('${friend._id}')">Add Friend</button>
+    </div>
+  `).join('');
 }
 
 function editProfile() {
-  document.getElementById('editFullname').value = user.fullname || '';
-  document.getElementById('editEmail').value = user.email;
-  document.getElementById('editPhone').value = user.phone || '';
-  document.getElementById('profileView').style.display = 'none';
-  document.getElementById('profileEdit').style.display = 'block';
+  document.getElementById("editFullname").value = user.fullname || '';
+  document.getElementById("editEmail").value = user.email;
+  document.getElementById("editPhone").value = user.phone || '';
+  document.getElementById("profileEdit").style.display = 'block';
 }
 
 function cancelEdit() {
-  document.getElementById('profileEdit').style.display = 'none';
-  document.getElementById('profileView').style.display = 'block';
+  document.getElementById("profileEdit").style.display = 'none';
 }
 
 async function saveProfile() {
-  const fullname = document.getElementById('editFullname').value;
-  const email = document.getElementById('editEmail').value;
-  const phone = document.getElementById('editPhone').value;
-
-  const res = await fetch(`https://test-5-jdfo.onrender.com/update-profile/${user._id}`, {
+  const fullname = document.getElementById("editFullname").value;
+  const email = document.getElementById("editEmail").value;
+  const phone = document.getElementById("editPhone").value;
+  const res = await fetch(`${API}/update-profile/${user._id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ fullname, email, phone })
   });
-
   const result = await res.json();
   if (result.success) {
-    localStorage.setItem('user', JSON.stringify(result.user));
+    localStorage.setItem("user", JSON.stringify(result.user));
     location.reload();
   } else {
-    alert(result.message || 'Update failed');
+    alert("Update failed");
   }
 }
 
 async function uploadPhoto(event) {
   const file = event.target.files[0];
   if (!file) return;
-
   const formData = new FormData();
   formData.append("photo", file);
-
-  const res = await fetch(`https://test-5-jdfo.onrender.com/upload-photo/${user._id}`, {
+  const res = await fetch(`${API}/upload-photo/${user._id}`, {
     method: 'POST',
     body: formData
   });
-
   const result = await res.json();
   if (result.success) {
     user.photo = result.url;
-    localStorage.setItem('user', JSON.stringify(user));
-    document.getElementById('profileAvatar').src = result.url;
+    localStorage.setItem("user", JSON.stringify(user));
+    document.getElementById("profileAvatar").src = result.url;
   } else {
-    alert("Failed to upload photo.");
+    alert("Upload failed");
   }
 }
 
-async function loadSuggestions() {
-  const res = await fetch(`https://test-5-jdfo.onrender.com/suggestions/${user._id}`);
-  const suggestions = await res.json();
-  document.getElementById('suggestionsContainer').innerHTML = suggestions.map(friend => `
-    <div class="post">
-      <strong>${friend.username}</strong>
-      <p>${friend.mutual || 0} mutual friends</p>
-      <button class="btn" onclick="sendRequest('${friend.username}')">Add Friend</button>
-    </div>
-  `).join('');
-}
-
+// Load on page
 loadSuggestions();
+loadRequests();
 </script>
-
 </body>
 </html>
