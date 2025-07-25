@@ -289,36 +289,48 @@ function renderPosts() {
   });
 }
 
-function searchFriend() {
+async function searchFriend() {
   const query = document.getElementById('searchFriend').value.trim();
   if (!query) return;
-  const html = `
+
+  const res = await fetch(`https://test-4-jqdf.onrender.com/search?q=${query}&exclude=${user._id}`);
+  const friends = await res.json();
+
+  if (friends.length === 0) {
+    document.getElementById('friendResults').innerHTML = `<div class="post">No users found.</div>`;
+    return;
+  }
+
+  document.getElementById('friendResults').innerHTML = friends.map(friend => `
     <div class="post">
-      <strong>${query}</strong>
-      <button class="btn" onclick="sendRequest('${query}')">Send Friend Request</button>
-    </div>`;
-  document.getElementById('friendResults').innerHTML = html;
+      <strong>${friend.username}</strong>
+      <button class="btn" onclick="sendRequest('${friend.username}', '${friend._id}')">Send Friend Request</button>
+    </div>
+  `).join('');
 }
 
-function sendRequest(name) {
+
+function sendRequest(name, id) {
   const html = `
     <div class="post">
       <strong>${name}</strong>
       <p>Friend request sent to ${name}.</p>
-      <button class="btn" onclick="acceptRequest('${name}')">Simulate Accept</button>
+      <button class="btn" onclick="acceptRequest('${name}', '${id}')">Simulate Accept</button>
     </div>`;
   document.getElementById('friendResults').innerHTML = html;
 }
 
-function acceptRequest(name) {
+
+function acceptRequest(name, id) {
   alert(`${name} accepted your request!`);
   document.getElementById('friendResults').innerHTML = `
     <div class="post">
       <strong>${name}</strong>
       <p>You and ${name} are now friends.</p>
-      <a href="chatnew.html?to=${encodeURIComponent(name)}" class="btn">Chat Now</a>
+      <a href="chatnew.html?to=${encodeURIComponent(id)}" class="btn">Chat Now</a>
     </div>`;
 }
+
 
 function logout() {
   localStorage.removeItem('user');

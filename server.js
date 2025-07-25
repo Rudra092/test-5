@@ -169,6 +169,19 @@ app.post('/upload-photo/:id', async (req, res) => {
   res.json({ success: true, url: 'https://via.placeholder.com/100?text=Uploaded' });
 });
 
+app.get('/search', async (req, res) => {
+  const { q, exclude } = req.query;
+  if (!q) return res.json([]);
+  
+  const users = await User.find({
+    username: { $regex: q, $options: 'i' },
+    _id: { $ne: exclude } // don't return current user
+  }).limit(10);
+
+  res.json(users);
+});
+
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
