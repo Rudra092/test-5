@@ -217,7 +217,7 @@
     let currentFriend = null;
 
     async function loadChats() {
-      const res = await fetch(`https://test-4-jqdf.onrender.com/chats/${user._id}`);
+      const res = await fetch(`https://test-5-jdfo.onrender.com/chats/${user._id}`);
       const data = await res.json();
       const chatList = document.getElementById('chatList');
       chatList.innerHTML = '';
@@ -237,7 +237,7 @@
     async function selectChat(id, name) {
       currentFriend = id;
       document.getElementById('chatTitle').textContent = `Chat with ${name}`;
-      const res = await fetch(`https://test-4-jqdf.onrender.com/messages/${user._id}/${id}`);
+      const res = await fetch(`https://test-5-jdfo.onrender.com/messages/${user._id}/${id}`);
       const data = await res.json();
 
       const container = document.getElementById('messageContainer');
@@ -256,7 +256,7 @@
       const text = input.value.trim();
       if (!text || !currentFriend) return;
 
-      const res = await fetch('https://test-4-jqdf.onrender.com/message', {
+      const res = await fetch('https://test-5-jdfo.onrender.com/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ from: user._id, to: currentFriend, text })
@@ -271,7 +271,7 @@
     loadChats();
 
     if (friendId) {
-      fetch(`https://test-4-jqdf.onrender.com/user/${friendId}`)
+      fetch(`https://test-5-jdfo.onrender.com/user/${friendId}`)
         .then(res => res.json())
         .then(data => {
           if (data.user) selectChat(friendId, data.user.username);

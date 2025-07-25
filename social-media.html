@@ -343,7 +343,7 @@ async function saveProfile() {
   const email = document.getElementById('editEmail').value;
   const phone = document.getElementById('editPhone').value;
 
-  const res = await fetch(`https://test-4-jqdf.onrender.com/update-profile/${user._id}`, {
+  const res = await fetch(`https://test-5-jdfo.onrender.com/update-profile/${user._id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fullname, email, phone })
@@ -365,7 +365,7 @@ async function uploadPhoto(event) {
   const formData = new FormData();
   formData.append("photo", file);
 
-  const res = await fetch(`https://test-4-jqdf.onrender.com/upload-photo/${user._id}`, {
+  const res = await fetch(`https://test-5-jdfo.onrender.com/upload-photo/${user._id}`, {
     method: 'POST',
     body: formData
   });
@@ -381,7 +381,7 @@ async function uploadPhoto(event) {
 }
 
 async function loadSuggestions() {
-  const res = await fetch(`https://test-4-jqdf.onrender.com/suggestions/${user._id}`);
+  const res = await fetch(`https://test-5-jdfo.onrender.com/suggestions/${user._id}`);
   const suggestions = await res.json();
   document.getElementById('suggestionsContainer').innerHTML = suggestions.map(friend => `
     <div class="post">
