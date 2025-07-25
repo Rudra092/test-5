@@ -1,3 +1,5 @@
+<!-- Replace your existing social-media.html with this code -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,73 +7,73 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Soulmate</title>
   <style>
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
       background-color: #f0f2f5;
     }
     .navbar {
-      background-color: #fff;
+      background: #fff;
+      padding: 10px 20px;
       display: flex;
       justify-content: space-between;
-      padding: 10px 20px;
+      align-items: center;
       border-bottom: 1px solid #ccc;
-      position: sticky;
-      top: 0;
-      z-index: 10;
     }
     .navbar h1 {
-      color: #1877f2;
       margin: 0;
+      color: #1877f2;
     }
     .navbar .center {
       display: flex;
-      align-items: center;
       gap: 10px;
     }
     .navbar input {
-      padding: 6px 10px;
+      padding: 6px 12px;
       border-radius: 20px;
       border: 1px solid #ccc;
     }
     .navbar button {
-      background: #1877f2;
-      color: #fff;
-      border: none;
       padding: 6px 12px;
       border-radius: 20px;
+      background: #1877f2;
+      color: white;
+      border: none;
       cursor: pointer;
     }
     .container {
-      display: flex;
       max-width: 1200px;
-      margin: 20px auto;
+      margin: auto;
+      display: flex;
       gap: 20px;
+      padding: 20px;
     }
     .sidebar, .rightbar {
       width: 250px;
       background: #fff;
+      border-radius: 10px;
       padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .feed {
       flex: 1;
+      max-width: 600px;
     }
-    .post-box, .post, .profile-card {
+    .card {
       background: #fff;
       padding: 15px;
-      margin-bottom: 20px;
       border-radius: 10px;
+      margin-bottom: 20px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .btn {
-      padding: 6px 12px;
       background: #1877f2;
       color: white;
       border: none;
+      padding: 8px 16px;
       border-radius: 6px;
       cursor: pointer;
+      margin-top: 10px;
     }
     .btn:hover {
       background: #145fd1;
@@ -83,8 +85,8 @@
 <div class="navbar">
   <h1>Soulmate</h1>
   <div class="center">
-    <input type="text" id="searchInput" placeholder="Search users...">
-    <button onclick="searchUsers()">Search</button>
+    <input type="text" id="searchFriend" placeholder="Search users...">
+    <button onclick="searchFriend()">Search</button>
   </div>
   <div>
     <span id="userGreeting"></span>
@@ -94,127 +96,195 @@
 
 <div class="container">
   <div class="sidebar">
-    <h3>Pending Requests</h3>
-    <div id="pendingRequests"></div>
+    <a href="chatnew.html">💬 Messages</a><br>
+    <a href="#">👤 Friends</a><br>
+    <a href="#">🖼️ Photos</a><br>
+    <a href="#">🔔 Notifications</a>
   </div>
 
   <div class="feed">
-    <div class="post-box">
-      <textarea id="postInput" rows="3" placeholder="What's on your mind?"></textarea>
+    <div class="card">
+      <textarea id="postInput" placeholder="What's on your mind?" rows="3" style="width:100%; border-radius:10px; padding:10px;"></textarea>
       <button class="btn" onclick="createPost()">Post</button>
     </div>
+
     <div id="postsContainer"></div>
-    <div id="searchResults"></div>
+
+    <div class="card">
+      <h3>Search Results</h3>
+      <div id="searchResults"></div>
+    </div>
+
+    <div class="card">
+      <h3>Friend Requests Received</h3>
+      <div id="incomingRequests"></div>
+    </div>
+
+    <div class="card">
+      <h3>People You May Know</h3>
+      <div id="suggestionsContainer"></div>
+    </div>
   </div>
 
   <div class="rightbar">
-    <div class="profile-card">
-      <h3 id="profileName">Name</h3>
-      <p id="profileEmail">Email</p>
+    <div class="card">
+      <input type="file" id="profilePhoto" style="display:none" onchange="uploadPhoto(event)">
+      <label for="profilePhoto">
+        <img id="profileAvatar" src="" alt="Avatar" style="width:100px;height:100px;border-radius:50%;cursor:pointer;object-fit:cover;">
+      </label>
+      <h3 id="profileName"></h3>
+      <p id="profileEmail"></p>
+      <p id="profilePhone"></p>
+      <button class="btn" onclick="editProfile()">Edit Profile</button>
+
+      <div id="profileEdit" style="display:none;margin-top:10px;">
+        <input id="editFullname" placeholder="Full Name"><br>
+        <input id="editEmail" placeholder="Email"><br>
+        <input id="editPhone" placeholder="Phone"><br>
+        <button class="btn" onclick="saveProfile()">Save</button>
+        <button class="btn" style="background:#ccc;color:#000" onclick="cancelEdit()">Cancel</button>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
-const API = 'https://test-5-jdfo.onrender.com';
-
+const API = "https://test-5-jdfo.onrender.com";
 const user = JSON.parse(localStorage.getItem('user'));
-if (!user) location.href = 'index.html';
+if (!user) location.href = "index.html";
 
-document.getElementById('userGreeting').textContent = `Hi, ${user.username}`;
-document.getElementById('profileName').textContent = user.fullname || user.username;
-document.getElementById('profileEmail').textContent = user.email;
+document.getElementById("userGreeting").textContent = `Hi, ${user.username}`;
+document.getElementById("profileName").textContent = user.fullname || user.username;
+document.getElementById("profileEmail").textContent = user.email;
+document.getElementById("profilePhone").textContent = user.phone || "";
+document.getElementById("profileAvatar").src = user.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=1877f2&color=fff`;
 
-let posts = [];
+function logout() {
+  localStorage.removeItem('user');
+  location.href = "index.html";
+}
 
 function createPost() {
-  const input = document.getElementById('postInput');
-  const text = input.value.trim();
-  if (!text) return alert('Post cannot be empty.');
-  const post = {
-    id: Date.now(),
-    user: user.username,
-    text
-  };
-  posts.unshift(post);
-  renderPosts();
-  input.value = '';
+  const text = document.getElementById("postInput").value.trim();
+  if (!text) return alert("Post cannot be empty.");
+  const post = { id: Date.now(), user: user.username, text };
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML = `<strong>${post.user}</strong><p>${post.text}</p>`;
+  document.getElementById("postsContainer").prepend(div);
+  document.getElementById("postInput").value = "";
 }
 
-function renderPosts() {
-  const container = document.getElementById('postsContainer');
-  container.innerHTML = posts.map(post => `
-    <div class="post">
-      <strong>${post.user}</strong>
-      <p>${post.text}</p>
-    </div>
-  `).join('');
-}
-
-async function searchUsers() {
-  const query = document.getElementById('searchInput').value.trim();
-  if (!query) return;
-
-  const res = await fetch(`${API}/search-users?query=${query}`);
-  const result = await res.json();
-  const users = result.users || [];
-
-  document.getElementById('searchResults').innerHTML = users
+async function searchFriend() {
+  const q = document.getElementById("searchFriend").value.trim();
+  if (!q) return;
+  const res = await fetch(`${API}/search-users?query=${encodeURIComponent(q)}`);
+  const users = await res.json();
+  const html = users
     .filter(u => u._id !== user._id)
     .map(u => `
-      <div class="post">
+      <div class="card">
         <strong>${u.username}</strong>
         <button class="btn" onclick="sendRequest('${u._id}')">Add Friend</button>
       </div>
     `).join('');
+  document.getElementById("searchResults").innerHTML = html || "<p>No users found.</p>";
 }
 
-async function sendRequest(toUserId) {
+async function sendRequest(toId) {
   const res = await fetch(`${API}/send-request`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: user._id, to: toUserId })
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ from: user._id, to: toId })
   });
   const result = await res.json();
-  if (result.success) {
-    alert('Friend request sent!');
-  } else {
-    alert(result.message || 'Failed to send request.');
-  }
+  alert(result.message || "Friend request sent");
 }
 
 async function loadRequests() {
-  const res = await fetch(`${API}/requests/${user._id}`);
+  const res = await fetch(`${API}/incoming-requests/${user._id}`);
+  const requests = await res.json();
+  document.getElementById("incomingRequests").innerHTML = requests.map(u => `
+    <div class="card">
+      <strong>${u.username}</strong>
+      <button class="btn" onclick="acceptRequest('${u._id}')">Accept</button>
+    </div>
+  `).join('') || "<p>No requests yet.</p>";
+}
+
+async function acceptRequest(fromId) {
+  const res = await fetch(`${API}/accept-request`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ from: fromId, to: user._id })
+  });
   const result = await res.json();
-  const container = document.getElementById('pendingRequests');
-  container.innerHTML = result.requests.map(r => `
-    <div class="post">
-      <strong>${r.from.username}</strong>
-      <button class="btn" onclick="acceptRequest('${r.from._id}')">Accept</button>
+  alert(result.message || "Friend added");
+  loadRequests();
+}
+
+async function loadSuggestions() {
+  const res = await fetch(`${API}/suggestions/${user._id}`);
+  const suggestions = await res.json();
+  document.getElementById("suggestionsContainer").innerHTML = suggestions.map(friend => `
+    <div class="card">
+      <strong>${friend.username}</strong>
+      <p>${friend.mutual || 0} mutual friends</p>
+      <button class="btn" onclick="sendRequest('${friend._id}')">Add Friend</button>
     </div>
   `).join('');
 }
 
-async function acceptRequest(fromUserId) {
-  const res = await fetch(`${API}/accept-request`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: fromUserId, to: user._id })
+function editProfile() {
+  document.getElementById("editFullname").value = user.fullname || '';
+  document.getElementById("editEmail").value = user.email;
+  document.getElementById("editPhone").value = user.phone || '';
+  document.getElementById("profileEdit").style.display = 'block';
+}
+
+function cancelEdit() {
+  document.getElementById("profileEdit").style.display = 'none';
+}
+
+async function saveProfile() {
+  const fullname = document.getElementById("editFullname").value;
+  const email = document.getElementById("editEmail").value;
+  const phone = document.getElementById("editPhone").value;
+  const res = await fetch(`${API}/update-profile/${user._id}`, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ fullname, email, phone })
   });
   const result = await res.json();
   if (result.success) {
-    alert('Friend added!');
-    loadRequests();
+    localStorage.setItem("user", JSON.stringify(result.user));
+    location.reload();
   } else {
-    alert(result.message || 'Failed to accept.');
+    alert("Update failed");
   }
 }
 
-function logout() {
-  localStorage.removeItem('user');
-  location.href = 'index.html';
+async function uploadPhoto(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append("photo", file);
+  const res = await fetch(`${API}/upload-photo/${user._id}`, {
+    method: 'POST',
+    body: formData
+  });
+  const result = await res.json();
+  if (result.success) {
+    user.photo = result.url;
+    localStorage.setItem("user", JSON.stringify(user));
+    document.getElementById("profileAvatar").src = result.url;
+  } else {
+    alert("Upload failed");
+  }
 }
 
+// Load on page
+loadSuggestions();
 loadRequests();
 </script>
 </body>
