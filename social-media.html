@@ -76,6 +76,13 @@
     .btn:hover {
       background: #145fd1;
     }
+    .sidebar a {
+      display: block;
+      margin: 8px 0;
+      text-decoration: none;
+      color: #1877f2;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -94,9 +101,9 @@
 
 <div class="container">
   <div class="sidebar">
-    <a href="chatnew.html">💬 Messages</a><br>
-    <a href="#" onclick="showFriends()">👤 Friends</a><br>
-    <a href="#">🖼️ Photos</a><br>
+    <a href="chatnew.html">💬 Messages</a>
+    <a href="#friends">👤 Friends</a>
+    <a href="#">🖼️ Photos</a>
     <a href="#">🔔 Notifications</a>
   </div>
 
@@ -122,6 +129,11 @@
       <h3>People You May Know</h3>
       <div id="suggestionsContainer"></div>
     </div>
+
+    <div class="card" id="friends">
+      <h3>Your Friends</h3>
+      <div id="friendsList"></div>
+    </div>
   </div>
 
   <div class="rightbar">
@@ -144,14 +156,6 @@
       </div>
     </div>
   </div>
-</div>
-
-<!-- Friends Modal -->
-<div id="friendsModal" style="display:none; position:fixed; top:80px; left:50%; transform:translateX(-50%);
- background:#fff; border-radius:10px; padding:20px; max-width:400px; width:90%; box-shadow:0 0 10px rgba(0,0,0,0.2); z-index:999;">
-  <h3>Your Friends</h3>
-  <div id="friendsList"></div>
-  <button onclick="closeFriends()" class="btn" style="margin-top:10px;">Close</button>
 </div>
 
 <script>
@@ -186,14 +190,12 @@ async function searchFriend() {
   if (!q) return;
   const res = await fetch(`${API}/search-users?query=${encodeURIComponent(q)}`);
   const users = await res.json();
-  const html = users
-    .filter(u => u._id !== user._id)
-    .map(u => `
-      <div class="card">
-        <strong>${u.username}</strong>
-        <button class="btn" onclick="sendRequest('${u._id}')">Add Friend</button>
-      </div>
-    `).join('');
+  const html = users.filter(u => u._id !== user._id).map(u => `
+    <div class="card">
+      <strong>${u.username}</strong>
+      <button class="btn" onclick="sendRequest('${u._id}')">Add Friend</button>
+    </div>
+  `).join('');
   document.getElementById("searchResults").innerHTML = html || "<p>No users found.</p>";
 }
 
@@ -227,6 +229,7 @@ async function acceptRequest(fromId) {
   const result = await res.json();
   alert(result.message || "Friend added");
   loadRequests();
+  loadFriends();
 }
 
 async function loadSuggestions() {
@@ -239,6 +242,17 @@ async function loadSuggestions() {
       <button class="btn" onclick="sendRequest('${friend._id}')">Add Friend</button>
     </div>
   `).join('');
+}
+
+async function loadFriends() {
+  const res = await fetch(`${API}/friends/${user._id}`);
+  const friends = await res.json();
+  document.getElementById("friendsList").innerHTML = friends.map(friend => `
+    <div class="card">
+      <strong>${friend.username}</strong>
+      <a href="chatnew.html?to=${friend._id}" class="btn">Chat</a>
+    </div>
+  `).join('') || "<p>No friends yet.</p>";
 }
 
 function editProfile() {
@@ -289,28 +303,9 @@ async function uploadPhoto(event) {
   }
 }
 
-async function showFriends() {
-  const res = await fetch(`${API}/friends/${user._id}`);
-  const friends = await res.json();
-  document.getElementById("friendsList").innerHTML = friends.length
-    ? friends.map(f => `
-        <div style="margin-bottom:10px;">
-          <strong>${f.username}</strong>
-          <a href="chatnew.html?to=${f._id}" class="btn" style="margin-left:10px;">Chat</a>
-        </div>
-      `).join('')
-    : "<p>You have no friends yet.</p>";
-  document.getElementById("friendsModal").style.display = "block";
-}
-
-function closeFriends() {
-  document.getElementById("friendsModal").style.display = "none";
-}
-
-// Load on page
 loadSuggestions();
 loadRequests();
+loadFriends();
 </script>
-
 </body>
 </html>

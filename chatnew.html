@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Chat - Soulmate</title>
+  <title>Soulmate - Chats</title>
   <style>
     body {
       margin: 0;
@@ -33,23 +33,14 @@
       border: none;
       border-radius: 20px;
       cursor: pointer;
-      font-size: 14px;
-    }
-
-    .home-btn:hover {
-      background: #e4e6eb;
-    }
-
-    .page-wrapper {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 10px;
     }
 
     .container {
+      max-width: 1200px;
+      margin: auto;
       display: flex;
       gap: 20px;
-      padding: 20px 0;
+      padding: 20px;
     }
 
     .chat-list, .chat-box {
@@ -111,13 +102,11 @@
     }
 
     .input-area input {
-      width: 100%;
       flex: 1;
       padding: 10px;
       border-radius: 20px;
       border: 1px solid #ccc;
       outline: none;
-      box-sizing: border-box;
     }
 
     .input-area button {
@@ -129,112 +118,85 @@
       cursor: pointer;
     }
 
-    .input-area button:hover {
-      background: #145fd1;
-    }
-
     @media (max-width: 768px) {
-      .navbar {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-      }
-
       .container {
         flex-direction: column;
-        gap: 20px;
+        padding: 10px;
       }
 
-      .chat-list, .chat-box {
+      .chat-list,
+      .chat-box {
         width: 100%;
-        max-width: 100%;
       }
 
       .input-area {
         flex-direction: column;
-        gap: 10px;
-      }
-
-      .input-area input,
-      .input-area button {
-        width: 100%;
       }
 
       .message {
         max-width: 100%;
-      }
-
-      .chat-box h3,
-      .chat-list h3 {
-        text-align: center;
       }
     }
   </style>
 </head>
 <body>
 
-  <div class="navbar">
-    <h2>Soulmate - Chats</h2>
-    <button class="home-btn" onclick="window.location.href='social-media.html'">🏠 Home</button>
+<div class="navbar">
+  <h2>Soulmate - Chats</h2>
+  <button class="home-btn" onclick="location.href='social-media.html'">🏠 Home</button>
+</div>
+
+<div class="container">
+  <div class="chat-list">
+    <h3>Your Friends</h3>
+    <div id="chatList"></div>
   </div>
 
-  <div class="page-wrapper">
-    <div class="container">
-      <div class="chat-list">
-        <h3>Your Friends</h3>
-        <div id="chatList"></div>
-      </div>
-
-      <div class="chat-box">
-        <h3 id="chatTitle">Select a friend</h3>
-        <div class="messages" id="messageContainer"></div>
-        <div class="input-area">
-          <input type="text" id="messageInput" placeholder="Type a message...">
-          <button onclick="sendMessage()">Send</button>
-        </div>
-      </div>
+  <div class="chat-box">
+    <h3 id="chatTitle">Select a chat</h3>
+    <div class="messages" id="messageContainer"></div>
+    <div class="input-area">
+      <input type="text" id="messageInput" placeholder="Type a message...">
+      <button onclick="sendMessage()">Send</button>
     </div>
   </div>
+</div>
 
 <script>
 const API = "https://test-5-jdfo.onrender.com";
-const user = JSON.parse(localStorage.getItem('user'));
-if (!user) location.href = 'index.html';
+const user = JSON.parse(localStorage.getItem("user"));
+if (!user) location.href = "index.html";
 
-const params = new URLSearchParams(location.search);
-const friendId = params.get('to');
 let currentFriend = null;
 let currentFriendName = "";
 
 async function loadFriends() {
   const res = await fetch(`${API}/friends/${user._id}`);
   const friends = await res.json();
-  const chatList = document.getElementById("chatList");
-  chatList.innerHTML = "";
+  const list = document.getElementById("chatList");
+  list.innerHTML = friends.map(friend => `
+    <div class="chat-preview" onclick="startChat('${friend._id}', '${friend.username}')">
+      <strong>${friend.username}</strong>
+    </div>
+  `).join('') || "<p>No friends yet.</p>";
 
-  friends.forEach(friend => {
-    const div = document.createElement("div");
-    div.className = "chat-preview";
-    div.innerHTML = `
-      <div onclick="selectChat('${friend._id}', '${friend.username}')">
-        <strong>${friend.username}</strong>
-      </div>
-    `;
-    chatList.appendChild(div);
-  });
+  const params = new URLSearchParams(location.search);
+  const friendId = params.get("to");
+  if (friendId) {
+    const friend = friends.find(f => f._id === friendId);
+    if (friend) startChat(friend._id, friend.username);
+  }
 }
 
-async function selectChat(friendId, friendName) {
+async function startChat(friendId, friendName) {
   currentFriend = friendId;
   currentFriendName = friendName;
   document.getElementById("chatTitle").textContent = `Chat with ${friendName}`;
-
   const res = await fetch(`${API}/messages/${user._id}/${friendId}`);
-  const data = await res.json();
-
+  const messages = await res.json();
   const container = document.getElementById("messageContainer");
   container.innerHTML = "";
-  data.messages.forEach(msg => {
+  messages.forEach(msg => {
     const div = document.createElement("div");
     div.className = "message" + (msg.from === user._id ? " me" : "");
     div.textContent = msg.text;
@@ -249,25 +211,18 @@ async function sendMessage() {
   if (!text || !currentFriend) return;
 
   const res = await fetch(`${API}/message`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ from: user._id, to: currentFriend, text })
   });
 
   if (res.ok) {
-    input.value = '';
-    selectChat(currentFriend, currentFriendName);
+    input.value = "";
+    startChat(currentFriend, currentFriendName);
   }
 }
 
 loadFriends();
-if (friendId) {
-  fetch(`${API}/user/${friendId}`)
-    .then(res => res.json())
-    .then(data => {
-      if (data.user) selectChat(friendId, data.user.username);
-    });
-}
 </script>
 
 </body>
