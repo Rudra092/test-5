@@ -154,9 +154,9 @@ app.put('/update-profile/:id', async (req, res) => {
   res.json({ success: true, message: 'Profile updated!', user });
 });
 
-// 👥 Get All Users
+// GET all users with their friend IDs
 app.get('/users', async (req, res) => {
-  const users = await User.find({}, 'fullname username');
+  const users = await User.find({}, 'username fullname friends'); // include friends field
   res.json(users);
 });
 

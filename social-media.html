@@ -13,6 +13,8 @@
 </head>
 <body>
   <h1>Welcome, <span id="user-name"></span>!</h1>
+<h2>Search Users</h2>
+<input type="text" id="search-input" placeholder="Search by name or username..." oninput="loadAllUsers()">
 
   <h2>Friend Requests</h2>
   <div id="friend-requests"></div>
@@ -34,30 +36,57 @@
     }
 
 async function loadAllUsers() {
-  const res = await fetch('https://test-5-jdfo.onrender.com/users');
-  const users = await res.json();
+  const searchTerm = document.getElementById('search-input')?.value?.toLowerCase() || '';
 
-  // Fetch current user's friends
-  const meRes = await fetch('https://test-5-jdfo.onrender.com/me/' + user._id);
+  const [usersRes, meRes, requestsRes] = await Promise.all([
+    fetch('https://test-5-jdfo.onrender.com/users'),
+    fetch('https://test-5-jdfo.onrender.com/me/' + user._id),
+    fetch('https://test-5-jdfo.onrender.com/friend-requests/' + user._id)
+  ]);
+
+  const users = await usersRes.json();
   const meData = await meRes.json();
+  const pendingRequests = await requestsRes.json();
+
   const myFriends = meData.user.friends.map(f => f._id);
 
   const list = document.getElementById('user-list');
   list.innerHTML = '';
+
   users.forEach(u => {
-    if (u._id !== user._id) {
-      const div = document.createElement('div');
-      div.className = 'user-card';
-      const isFriend = myFriends.includes(u._id);
-      div.innerHTML = `${u.fullname} (${u.username}) ` + 
-        (isFriend
-          ? `<span style="color: green; font-weight: bold;">Friends</span>`
-          : `<button onclick="sendRequest('${u._id}')">Add Friend</button>`);
-      list.appendChild(div);
+    if (u._id === user._id) return; // skip self
+
+    const nameMatch = u.fullname.toLowerCase().includes(searchTerm);
+    const usernameMatch = u.username.toLowerCase().includes(searchTerm);
+    if (!nameMatch && !usernameMatch) return;
+
+    const isFriend = myFriends.includes(u._id);
+    const alreadyRequested = pendingRequests.some(r => r.from._id === user._id && r.to === u._id);
+
+    const mutualFriends = u.friends?.filter(fid => myFriends.includes(fid)).length || 0;
+
+    const div = document.createElement('div');
+    div.className = 'user-card';
+
+    let statusHTML = '';
+    if (isFriend) {
+      statusHTML = `<span style="color: green; font-weight: bold;">Friends</span>`;
+    } else if (alreadyRequested) {
+      statusHTML = `<button disabled>Request Sent</button>`;
+    } else {
+      statusHTML = `<button onclick="sendRequest('${u._id}')">Add Friend</button>`;
     }
+
+    div.innerHTML = `
+      ${u.fullname} (${u.username})
+      <br>
+      <small>Mutual Friends: ${mutualFriends}</small>
+      <br>
+      ${statusHTML}
+    `;
+    list.appendChild(div);
   });
 }
-
 
     async function sendRequest(to) {
       await fetch('https://test-5-jdfo.onrender.com/friend-request', {
