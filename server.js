@@ -15,7 +15,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors({ origin: '*' }));
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d' }));
 
 let onlineUsers = {};
 
@@ -27,7 +27,7 @@ mongoose.connect(process.env.MONGO_URI, {
 
 const userSchema = new mongoose.Schema({
   username: String,
-  password: String,
+  password: String, // TODO: Hash passwords before storing and verifying (bcrypt recommended)
   email: String,
   fullname: String,
   phone: String,
@@ -80,18 +80,27 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat-message', async (msg) => {
-    const newMsg = new Message({ ...msg });
-    await newMsg.save();
-    const receiver = Object.values(onlineUsers).find(u => u._id === msg.to);
-    if (receiver) io.to(receiver.socketId).emit('chat-message', newMsg);
-    socket.emit('chat-message', newMsg);
+    try {
+      const newMsg = new Message({ ...msg });
+      await newMsg.save();
+      const receiver = Object.values(onlineUsers).find(u => u._id === msg.to);
+      if (receiver) io.to(receiver.socketId).emit('chat-message', newMsg);
+      socket.emit('chat-message', newMsg);
+    } catch (err) {
+      console.error('Error saving message:', err);
+    }
   });
 
   socket.on('mark-seen', async ({ from, to }) => {
-    await Message.updateMany({ from, to, seen: false }, { seen: true });
+    try {
+      await Message.updateMany({ from, to, seen: false }, { seen: true });
+    } catch (err) {
+      console.error('Error marking seen:', err);
+    }
   });
 
   socket.on('disconnect', () => {
+    console.log(`❌ User disconnected: ${socket.id}`);
     delete onlineUsers[socket.id];
     io.emit('online-users', Object.values(onlineUsers));
   });
@@ -136,13 +145,17 @@ app.post('/request-otp', async (req, res) => {
 
 app.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;
-  res.json({ success: otps[email] === otp });
+  if (otps[email] === otp) {
+    delete otps[email];
+    return res.json({ success: true });
+  }
+  res.json({ success: false });
 });
 
 app.post('/reset-password', async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOneAndUpdate({ email }, { password });
-  if (!user) return res.status(404).json({ success: false });
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
   delete otps[email];
   res.json({ success: true });
 });
@@ -165,6 +178,7 @@ app.get('/users', async (req, res) => {
 });
 
 app.post('/upload-avatar/:id', upload.single('avatar'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
   const user = await User.findByIdAndUpdate(req.params.id, { avatar: `/uploads/${req.file.filename}` }, { new: true });
   res.json({ success: true, user });
 });
@@ -190,8 +204,8 @@ app.post('/friend-request/accept', async (req, res) => {
   await request.save();
   const fromUser = await User.findById(request.from);
   const toUser = await User.findById(request.to);
-  if (!fromUser.friends.includes(toUser._id)) fromUser.friends.push(toUser._id);
-  if (!toUser.friends.includes(fromUser._id)) toUser.friends.push(fromUser._id);
+  if (!fromUser.friends.map(f => f.toString()).includes(toUser._id.toString())) fromUser.friends.push(toUser._id);
+  if (!toUser.friends.map(f => f.toString()).includes(fromUser._id.toString())) toUser.friends.push(fromUser._id);
   await fromUser.save();
   await toUser.save();
   res.json({ success: true });

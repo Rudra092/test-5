@@ -13,9 +13,8 @@
     #status { font-size:0.9rem; opacity:0.8; margin-left:10px; }
     #chat-box { flex:1; overflow-y:auto; padding:1rem; display:flex; flex-direction:column; gap:10px; }
     .date-group { text-align:center; color:#666; font-size:0.85rem; margin:20px 0 10px; }
-    .message-row { display:flex; gap:10px; align-items:flex-end; }
-    .avatar { width:32px; height:32px; border-radius:50%; background:#ccc; flex-shrink:0; }
-    .message { padding:10px; border-radius:10px; max-width:70%; background:#e1f5fe; position:relative; }
+    .message-row { display:flex; flex-direction:column; }
+    .message { padding:10px; border-radius:10px; max-width:70%; background:#e1f5fe; position:relative; margin:2px 0; }
     .message.you { background:#d0f0c0; align-self:flex-end; }
     .timestamp { font-size:0.75rem; color:#666; margin-top:4px; position:absolute; bottom:-18px; right:8px; }
     .seen { font-size:0.7rem; color:#666; margin-left:4px; }
@@ -63,13 +62,28 @@
     const fileInput = document.getElementById('file-upload');
     const friendNameEl = document.getElementById('friend-name');
     const statusEl = document.getElementById('status');
-
     let friendData = {};
+    let lastDate;
 
     fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
-      .then(r=>r.json()).then(d => { friendData = d.user; friendNameEl.textContent = friendData.fullname; });
+      .then(r => r.json())
+      .then(d => {
+        friendData = d.user;
+        friendNameEl.textContent = friendData.fullname;
+        loadMessages(); // Fetch old messages after friend info
+      });
+
+    function loadMessages() {
+      fetch(`https://test-5-jdfo.onrender.com/messages/${user._id}/${friendId}`)
+        .then(r => r.json())
+        .then(data => {
+          data.forEach(renderMessage);
+          socket.emit('mark-seen', { from: friendId, to: user._id });
+        });
+    }
 
     socket.emit('user-connected', { id: user._id, name: user.fullname });
+
     socket.on('update-status', ({ userId, status }) => {
       if (userId === friendId) statusEl.textContent = status ? 'Online' : 'Offline';
     });
@@ -86,7 +100,6 @@
       }
     });
 
-    let lastDate;
     function renderMessage(msg) {
       const dt = new Date(msg.time).toDateString();
       if (dt !== lastDate) {
@@ -96,15 +109,18 @@
         chatBox.append(grp);
         lastDate = dt;
       }
+
       const row = document.createElement('div');
       row.className = 'message-row';
-      const avatar = document.createElement('img');
-      avatar.className = 'avatar';
-      avatar.src = msg.from === user._id ? user.avatar || '' : (friendData.avatar || '');
-      row.append(avatar);
+
+      const nameLabel = document.createElement('strong');
+      nameLabel.textContent = msg.from._id === user._id ? user.fullname : friendData.fullname;
+      nameLabel.style.marginBottom = '4px';
+      row.append(nameLabel);
 
       const msgDiv = document.createElement('div');
-      msgDiv.className = 'message' + (msg.from === user._id ? ' you' : '');
+      msgDiv.className = 'message' + (msg.from._id === user._id ? ' you' : '');
+
       if (msg.image) {
         const img = document.createElement('img');
         img.src = msg.image;
@@ -115,10 +131,10 @@
 
       const time = document.createElement('div');
       time.className = 'timestamp';
-      time.textContent = new Date(msg.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      time.textContent = new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       msgDiv.append(time);
 
-      if (msg.from === user._id && msg.seen) {
+      if (msg.from._id === user._id && msg.seen) {
         const seen = document.createElement('span');
         seen.className = 'seen';
         seen.textContent = 'Seen';
@@ -130,16 +146,23 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    socket.on('chat-message', msg => renderMessage(msg));
+    socket.on('chat-message', msg => {
+      renderMessage(msg);
+      if (msg.from._id === friendId) {
+        socket.emit('mark-seen', { from: friendId, to: user._id });
+      }
+    });
 
     function sendMessage() {
       const text = input.value.trim(), file = fileInput.files[0];
       if (!text && !file) return;
-      const msg = { from:user._id,to:friendId,text, time:new Date().toISOString() };
+      const msg = { from: user, to: friendId, text, time: new Date().toISOString() };
+
       function emitMsg() {
         socket.emit('chat-message', msg);
         input.value = ''; fileInput.value = '';
       }
+
       if (file) {
         const reader = new FileReader();
         reader.onload = () => { msg.image = reader.result; emitMsg(); };
@@ -147,12 +170,21 @@
       } else emitMsg();
     }
 
-    function toggleEmoji() { const pk = document.getElementById('emoji-picker'); pk.style.display = pk.style.display==='none'?'block':'none'; }
-    document.getElementById('emoji-picker').addEventListener('emoji-click', e => input.value += e.detail.unicode);
+    function toggleEmoji() {
+      const pk = document.getElementById('emoji-picker');
+      pk.style.display = pk.style.display === 'none' ? 'block' : 'none';
+    }
 
-    // Drag & drop support
-    document.body.addEventListener('dragover', e=>{ e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
-    document.body.addEventListener('drop', e=>{
+    document.getElementById('emoji-picker').addEventListener('emoji-click', e => {
+      input.value += e.detail.unicode;
+    });
+
+    document.body.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+
+    document.body.addEventListener('drop', e => {
       e.preventDefault();
       const f = e.dataTransfer.files[0];
       if (f && f.type.startsWith('image/')) {
