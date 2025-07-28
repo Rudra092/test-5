@@ -21,12 +21,26 @@ io.on('connection', (socket) => {
   console.log('🔌 New client connected:', socket.id);
 
   socket.on('user-connected', (user) => {
-    onlineUsers[socket.id] = user;
+    onlineUsers[socket.id] = { ...user, socketId: socket.id };
     io.emit('online-users', Object.values(onlineUsers));
   });
 
+  socket.on('typing', ({ to, from }) => {
+    const receiver = Object.values(onlineUsers).find(u => u._id === to);
+    if (receiver) io.to(receiver.socketId).emit('typing', from);
+  });
+
+  socket.on('stop-typing', ({ to, from }) => {
+    const receiver = Object.values(onlineUsers).find(u => u._id === to);
+    if (receiver) io.to(receiver.socketId).emit('stop-typing', from);
+  });
+
   socket.on('chat-message', (msg) => {
-    io.emit('chat-message', msg);
+    const receiver = Object.values(onlineUsers).find(u => u._id === msg.to);
+    const timestampedMsg = { ...msg, timestamp: new Date().toISOString() };
+
+    if (receiver) io.to(receiver.socketId).emit('chat-message', timestampedMsg);
+    socket.emit('chat-message', timestampedMsg); // echo back to sender
   });
 
   socket.on('disconnect', () => {
@@ -35,14 +49,12 @@ io.on('connection', (socket) => {
   });
 });
 
-// 🔗 Connect MongoDB
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 }).then(() => console.log('✅ MongoDB connected'))
   .catch(err => console.error('❌ MongoDB error:', err));
 
-// 👤 User Schema
 const User = mongoose.model('User', new mongoose.Schema({
   username: String,
   password: String,
@@ -52,17 +64,14 @@ const User = mongoose.model('User', new mongoose.Schema({
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }));
 
-// ➕ Friend Request Schema
 const FriendRequest = mongoose.model('FriendRequest', new mongoose.Schema({
   from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  status: { type: String, default: 'pending' } // pending, accepted
+  status: { type: String, default: 'pending' }
 }));
 
-// 📧 OTP Store
 const otps = {};
 
-// 📬 Nodemailer
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -71,7 +80,6 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// 📝 Register
 app.post('/register', async (req, res) => {
   const { username, email, password, fullname, phone } = req.body;
   if (!username || !email || !password) {
@@ -88,7 +96,6 @@ app.post('/register', async (req, res) => {
   res.json({ success: true, message: 'Registered successfully!' });
 });
 
-// 🔐 Login
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -108,7 +115,6 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// 📧 Request OTP
 app.post('/request-otp', async (req, res) => {
   const { email } = req.body;
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -128,7 +134,6 @@ app.post('/request-otp', async (req, res) => {
   }
 });
 
-// ✅ Verify OTP
 app.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;
   if (otps[email] === otp) {
@@ -138,24 +143,20 @@ app.post('/verify-otp', (req, res) => {
   }
 });
 
-// 🔁 Reset Password
 app.post('/reset-password', async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOneAndUpdate({ email }, { password });
   if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-
   delete otps[email];
   res.json({ success: true, message: 'Password reset successfully' });
 });
 
-// 👤 Get current user + friends
 app.get('/me/:id', async (req, res) => {
   const user = await User.findById(req.params.id).populate('friends', 'fullname username');
   if (!user) return res.status(404).json({ success: false });
   res.json({ success: true, user });
 });
 
-// 🛠️ Update Profile
 app.put('/update-profile/:id', async (req, res) => {
   const { fullname, email, phone } = req.body;
   const user = await User.findByIdAndUpdate(req.params.id, { fullname, email, phone }, { new: true });
@@ -163,13 +164,11 @@ app.put('/update-profile/:id', async (req, res) => {
   res.json({ success: true, message: 'Profile updated!', user });
 });
 
-// GET all users with their friend IDs
 app.get('/users', async (req, res) => {
-  const users = await User.find({}, 'username fullname friends'); // include friends field
+  const users = await User.find({}, 'username fullname friends');
   res.json(users);
 });
 
-// ➕ Send Friend Request
 app.post('/friend-request', async (req, res) => {
   const { from, to } = req.body;
   const exists = await FriendRequest.findOne({ from, to, status: 'pending' });
@@ -179,13 +178,11 @@ app.post('/friend-request', async (req, res) => {
   res.json({ success: true });
 });
 
-// 📩 View Incoming Requests
 app.get('/friend-requests/:id', async (req, res) => {
   const requests = await FriendRequest.find({ to: req.params.id, status: 'pending' }).populate('from', 'fullname username');
   res.json(requests);
 });
 
-// ✅ Accept Friend Request
 app.post('/friend-request/accept', async (req, res) => {
   const { requestId } = req.body;
   const request = await FriendRequest.findById(requestId);
