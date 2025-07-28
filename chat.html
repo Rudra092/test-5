@@ -1,147 +1,46 @@
+<!-- public/chat.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #f0f2f5;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-
-    header {
-      background-color: #1877f2;
-      color: white;
-      padding: 16px;
-      font-size: 1.2rem;
-      font-weight: bold;
-    }
-
-    #chat-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-
-    #chat-box {
-      flex: 1;
-      background: white;
-      border-radius: 10px;
-      padding: 16px;
-      overflow-y: auto;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      margin-bottom: 10px;
-    }
-
-    .message {
-      padding: 10px 14px;
-      margin-bottom: 10px;
-      border-radius: 20px;
-      max-width: 70%;
-      clear: both;
-      font-size: 0.95rem;
-      line-height: 1.4;
-    }
-
-    .sent {
-      background-color: #1877f2;
-      color: white;
-      align-self: flex-end;
-      float: right;
-    }
-
-    .received {
-      background-color: #e4e6eb;
-      color: black;
-      align-self: flex-start;
-      float: left;
-    }
-
-    #message-area {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    #message-input {
-      flex: 1;
-      padding: 12px;
-      border-radius: 20px;
-      border: 1px solid #ccc;
-      font-size: 1rem;
-    }
-
-    #send-button {
-      background-color: #1877f2;
-      border: none;
-      color: white;
-      padding: 10px 16px;
-      border-radius: 20px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    #send-button:hover {
-      background-color: #145dbf;
-    }
-
-    @media (max-width: 600px) {
-      #chat-container {
-        padding: 10px;
-      }
-    }
+    body { font-family: Arial, sans-serif; }
+    #chat-box { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
+    #message-input { width: 80%; }
   </style>
 </head>
 <body>
-
-  <header>
-    Chat with <span id="friend-name">...</span>
-  </header>
-
-  <div id="chat-container">
-    <div id="chat-box"></div>
-
-    <div id="message-area">
-      <input type="text" id="message-input" placeholder="Type a message..." />
-      <button id="send-button" onclick="sendMessage()">Send</button>
-    </div>
-  </div>
+  <h2>Chat with <span id="friend-name"></span></h2>
+  <div id="chat-box"></div>
+  <input type="text" id="message-input" placeholder="Type your message...">
+  <button onclick="sendMessage()">Send</button>
 
   <script>
     const socket = io('https://test-5-jdfo.onrender.com');
     const user = JSON.parse(localStorage.getItem('user'));
     const urlParams = new URLSearchParams(window.location.search);
     const friendId = urlParams.get('fid');
-    const chatBox = document.getElementById('chat-box');
 
-    // Fetch friend details
+    // You should fetch friend info here
     fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
       .then(res => res.json())
       .then(data => {
         document.getElementById('friend-name').textContent = data.user.fullname;
       });
 
-    // Notify server
+    const chatBox = document.getElementById('chat-box');
+
     socket.emit('user-connected', user.username);
 
-    // Receive messages
     socket.on('chat-message', (msg) => {
       if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
-        appendMessage(msg.text, msg.from === user._id ? 'sent' : 'received');
+        const div = document.createElement('div');
+        div.textContent = `${msg.from === user._id ? 'You' : 'Friend'}: ${msg.text}`;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
       }
     });
 
@@ -149,18 +48,8 @@
       const input = document.getElementById('message-input');
       const text = input.value.trim();
       if (!text) return;
-
       socket.emit('chat-message', { from: user._id, to: friendId, text });
-      appendMessage(text, 'sent');
       input.value = '';
-    }
-
-    function appendMessage(text, type) {
-      const div = document.createElement('div');
-      div.classList.add('message', type);
-      div.textContent = text;
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
     }
   </script>
 </body>
