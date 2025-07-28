@@ -91,11 +91,20 @@ app.post('/register', async (req, res) => {
 // 🔐 Login
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  const found = await User.findOne({ username, password });
-  if (found) {
-    res.json({ success: true, user: found });
-  } else {
-    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  try {
+    const found = await User.findOne({ username, password });
+    if (found) {
+      res.json({
+        success: true,
+        message: 'Login successful!',
+        user: found
+      });
+    } else {
+      res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
