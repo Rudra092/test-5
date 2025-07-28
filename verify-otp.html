@@ -61,7 +61,7 @@
     e.preventDefault();
     const email = localStorage.getItem("reset_email");
     const otp = e.target.otp.value;
-    const res = await fetch("https://test-5-jdfo.onrender.com/verify-otp", {
+    const res = await fetch("https://test-4-jqdf.onrender.com/verify-otp", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ email, otp })

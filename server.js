@@ -1,155 +1,188 @@
-const express = require("express");
-const cors = require("cors");
-const mongoose = require("mongoose");
-const multer = require("multer");
-const path = require("path");
-
+const express = require('express');
+const cors = require('cors');
+const mongoose = require('mongoose');
+const nodemailer = require('nodemailer');
+const http = require('http');
+const { Server } = require('socket.io');
+require('dotenv').config();
+// Setup Express + HTTP + Socket.IO
 const app = express();
-app.use(cors());
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*'
+  }
+});
+
+app.use(cors({ origin: '*' })); // allow requests from any origin
 app.use(express.json());
-app.use("/uploads", express.static("uploads"));
 
-mongoose.connect("mongodb+srv://<your_mongo_url>", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log("MongoDB connected"))
-  .catch(err => console.error("MongoDB error:", err));
+let onlineUsers = {};
 
-// ==== MODELS ====
-const User = mongoose.model("User", new mongoose.Schema({
-  username: String,
-  email: String,
-  password: String,
-  fullname: String,
-  phone: String,
-  photo: String,
-}));
+io.on('connection', (socket) => {
+  console.log('🔌 New client connected:', socket.id);
 
-const FriendRequest = mongoose.model("FriendRequest", new mongoose.Schema({
-  from: mongoose.Schema.Types.ObjectId,
-  to: mongoose.Schema.Types.ObjectId,
-}));
-
-const Message = mongoose.model("Message", new mongoose.Schema({
-  from: mongoose.Schema.Types.ObjectId,
-  to: mongoose.Schema.Types.ObjectId,
-  text: String,
-  timestamp: { type: Date, default: Date.now }
-}));
-
-// ==== MULTER FOR PHOTO UPLOAD ====
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads"),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
-});
-const upload = multer({ storage });
-
-// ==== AUTH ROUTES ====
-app.post("/register", async (req, res) => {
-  const { username, email, password } = req.body;
-  const exists = await User.findOne({ email });
-  if (exists) return res.json({ success: false, message: "Email already registered" });
-
-  const user = await User.create({ username, email, password });
-  res.json({ success: true, user });
-});
-
-app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email, password });
-  if (!user) return res.json({ success: false, message: "Invalid credentials" });
-
-  res.json({ success: true, user });
-});
-
-// ==== PROFILE ====
-app.put("/update-profile/:id", async (req, res) => {
-  const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  res.json({ success: true, user });
-});
-
-app.post("/upload-photo/:id", upload.single("photo"), async (req, res) => {
-  const photoPath = `https://test-5-jdfo.onrender.com/uploads/${req.file.filename}`;
-  await User.findByIdAndUpdate(req.params.id, { photo: photoPath });
-  res.json({ success: true, url: photoPath });
-});
-
-// ==== FRIEND REQUESTS ====
-app.post("/send-request", async (req, res) => {
-  const { from, to } = req.body;
-  const exists = await FriendRequest.findOne({ from, to });
-  if (exists) return res.json({ message: "Already sent" });
-
-  await FriendRequest.create({ from, to });
-  res.json({ message: "Friend request sent" });
-});
-
-app.post("/accept-request", async (req, res) => {
-  const { from, to } = req.body;
-  await FriendRequest.deleteOne({ from, to });
-  await FriendRequest.deleteOne({ from: to, to: from });
-  await FriendRequest.create({ from, to }); // accepted friend (bidirectional simulated)
-  await FriendRequest.create({ from: to, to: from });
-  res.json({ message: "Friend request accepted" });
-});
-
-app.get("/incoming-requests/:id", async (req, res) => {
-  const requests = await FriendRequest.find({ to: req.params.id });
-  const users = await User.find({ _id: { $in: requests.map(r => r.from) } });
-  res.json(users);
-});
-
-app.get("/friends/:id", async (req, res) => {
-  const sent = await FriendRequest.find({ from: req.params.id });
-  const received = await FriendRequest.find({ to: req.params.id });
-  const friendIds = sent
-    .filter(s => received.some(r => String(r.from) === String(s.to)))
-    .map(s => s.to);
-  const friends = await User.find({ _id: { $in: friendIds } });
-  res.json(friends);
-});
-
-// ==== SUGGESTIONS ====
-app.get("/suggestions/:id", async (req, res) => {
-  const allUsers = await User.find({ _id: { $ne: req.params.id } });
-  const requests = await FriendRequest.find({
-    $or: [{ from: req.params.id }, { to: req.params.id }]
+  // When user logs in and sends their name
+  socket.on('user-connected', (user) => {
+    onlineUsers[socket.id] = user;
+    io.emit('online-users', Object.values(onlineUsers));
   });
 
-  const connectedIds = new Set(
-    requests.map(r => String(r.from) === req.params.id ? r.to : r.from)
-  );
+  // When user sends a message
+  socket.on('chat-message', (msg) => {
+    io.emit('chat-message', msg); // broadcast to all
+  });
 
-  const suggestions = allUsers.filter(u => !connectedIds.has(String(u._id)));
-  res.json(suggestions);
+  // When user disconnects
+  socket.on('disconnect', () => {
+    delete onlineUsers[socket.id];
+    io.emit('online-users', Object.values(onlineUsers));
+  });
 });
 
-// ==== SEARCH USERS ====
-app.get("/search-users", async (req, res) => {
-  const users = await User.find({
-    username: { $regex: req.query.query, $options: "i" }
-  }).select("_id username");
-  res.json(users);
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log('✅ MongoDB connected'))
+.catch(err => console.error('❌ MongoDB connection error:', err));
+
+// User model
+const User = mongoose.model('User', new mongoose.Schema({
+  username: String,
+  password: String,
+  email: String,
+  fullname: String,
+  phone: String
+}));
+
+// In-memory OTP store (use DB or Redis in production)
+const otps = {};
+
+// Nodemailer setup (Gmail App Passwords required)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
 });
 
-// ==== MESSAGING ====
-app.post("/message", async (req, res) => {
-  const { from, to, text } = req.body;
-  await Message.create({ from, to, text });
-  res.json({ success: true });
+// 🔐 Register
+app.post('/register', async (req, res) => {
+  const { username, email, password, fullname, phone } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ success: false, message: 'All fields are required.' });
+  }
+
+  const existing = await User.findOne({ $or: [{ username }, { email }] });
+  if (existing) {
+    return res.status(400).json({ success: false, message: 'User already exists' });
+  }
+
+  const user = new User({ username, email, password, fullname, phone });
+  await user.save();
+
+  res.json({ success: true, message: 'Registered successfully!' });
 });
 
-app.get("/messages/:from/:to", async (req, res) => {
-  const { from, to } = req.params;
-  const messages = await Message.find({
-    $or: [
-      { from, to },
-      { from: to, to: from }
-    ]
-  }).sort("timestamp");
-  res.json(messages);
+// 🔐 Login
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const found = await User.findOne({ username, password });
+
+if (found) {
+  res.json({
+    success: true,
+    message: 'Login successful!',
+    user: found
+  });
+}
+ else {
+      res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
-// ==== SERVER START ====
+// 📧 Request OTP
+app.post('/request-otp', async (req, res) => {
+  const { email } = req.body;
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  otps[email] = otp;
+
+  try {
+    await transporter.sendMail({
+      from: `"My App" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Password Reset OTP',
+      html: `<p>Your OTP is: <strong>${otp}</strong></p>`
+    });
+
+    res.json({ success: true, message: 'OTP sent to email' });
+  } catch (err) {
+    console.error('Email send error:', err);
+    res.status(500).json({ success: false, message: 'Failed to send OTP' });
+  }
+});
+
+// ✅ Verify OTP
+app.post('/verify-otp', (req, res) => {
+  const { email, otp } = req.body;
+
+  if (otps[email] === otp) {
+    res.json({ success: true });
+  } else {
+    res.json({ success: false, message: 'Invalid OTP' });
+  }
+});
+
+// 🔁 Reset Password
+app.post('/reset-password', async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await User.findOneAndUpdate({ email }, { password });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    delete otps[email];
+    res.json({ success: true, message: 'Password reset successfully' });
+  } catch (err) {
+    console.error('Reset error:', err);
+    res.status(500).json({ success: false, message: 'Failed to reset password' });
+  }
+});
+
+// ✅ Fetch current user by ID
+app.get('/me/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id, '-password');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ✅ Update user profile
+app.put('/update-profile/:id', async (req, res) => {
+  const { fullname, email, phone } = req.body;
+  try {
+    const user = await User.findByIdAndUpdate(req.params.id, { fullname, email, phone }, { new: true });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, message: 'Profile updated!', user });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Update failed' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port", PORT));
+// Use this instead of app.listen
+server.listen(PORT, () => console.log(`🚀 Server running with socket.io on port ${PORT}`));
