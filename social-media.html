@@ -33,20 +33,31 @@
       renderFriends(data.user.friends);
     }
 
-    async function loadAllUsers() {
-      const res = await fetch('https://test-5-jdfo.onrender.com/users'); // you need to create this route to get all users
-      const users = await res.json();
-      const list = document.getElementById('user-list');
-      list.innerHTML = '';
-      users.forEach(u => {
-        if (u._id !== user._id) {
-          const div = document.createElement('div');
-          div.className = 'user-card';
-          div.innerHTML = `${u.fullname} (${u.username}) <button onclick="sendRequest('${u._id}')">Add Friend</button>`;
-          list.appendChild(div);
-        }
-      });
+async function loadAllUsers() {
+  const res = await fetch('https://test-5-jdfo.onrender.com/users');
+  const users = await res.json();
+
+  // Fetch current user's friends
+  const meRes = await fetch('https://test-5-jdfo.onrender.com/me/' + user._id);
+  const meData = await meRes.json();
+  const myFriends = meData.user.friends.map(f => f._id);
+
+  const list = document.getElementById('user-list');
+  list.innerHTML = '';
+  users.forEach(u => {
+    if (u._id !== user._id) {
+      const div = document.createElement('div');
+      div.className = 'user-card';
+      const isFriend = myFriends.includes(u._id);
+      div.innerHTML = `${u.fullname} (${u.username}) ` + 
+        (isFriend
+          ? `<span style="color: green; font-weight: bold;">Friends</span>`
+          : `<button onclick="sendRequest('${u._id}')">Add Friend</button>`);
+      list.appendChild(div);
     }
+  });
+}
+
 
     async function sendRequest(to) {
       await fetch('https://test-5-jdfo.onrender.com/friend-request', {
