@@ -1,0 +1,56 @@
+<!-- public/chat.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    #chat-box { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
+    #message-input { width: 80%; }
+  </style>
+</head>
+<body>
+  <h2>Chat with <span id="friend-name"></span></h2>
+  <div id="chat-box"></div>
+  <input type="text" id="message-input" placeholder="Type your message...">
+  <button onclick="sendMessage()">Send</button>
+
+  <script>
+    const socket = io('https://test-5-jdfo.onrender.com');
+    const user = JSON.parse(localStorage.getItem('user'));
+    const urlParams = new URLSearchParams(window.location.search);
+    const friendId = urlParams.get('fid');
+
+    // You should fetch friend info here
+    fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('friend-name').textContent = data.user.fullname;
+      });
+
+    const chatBox = document.getElementById('chat-box');
+
+    socket.emit('user-connected', user.username);
+
+    socket.on('chat-message', (msg) => {
+      if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
+        const div = document.createElement('div');
+        div.textContent = `${msg.from === user._id ? 'You' : 'Friend'}: ${msg.text}`;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    });
+
+    function sendMessage() {
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (!text) return;
+      socket.emit('chat-message', { from: user._id, to: friendId, text });
+      input.value = '';
+    }
+  </script>
+</body>
+</html>
