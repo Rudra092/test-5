@@ -1,29 +1,105 @@
-<!-- public/social-media.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Social Media Dashboard</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .user-card { border: 1px solid #ddd; padding: 10px; margin: 5px 0; }
-    button { margin-left: 10px; }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 20px;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    #user-name {
+      color: #007bff;
+    }
+    .section {
+      margin-bottom: 30px;
+    }
+    #search-input {
+      width: 100%;
+      max-width: 400px;
+      padding: 10px;
+      margin: 10px 0 20px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    .user-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px 0;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      transition: transform 0.2s ease;
+    }
+    .user-card:hover {
+      transform: scale(1.01);
+    }
+    .user-card button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 5px;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .user-card button:hover {
+      background: #0056b3;
+    }
+    .user-card button[disabled] {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .mutual {
+      font-size: 13px;
+      color: #666;
+      margin-top: 5px;
+    }
+    .friend-badge {
+      color: green;
+      font-weight: bold;
+      font-size: 15px;
+    }
+    a {
+      color: #007bff;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
   <h1>Welcome, <span id="user-name"></span>!</h1>
-<h2>Search Users</h2>
-<input type="text" id="search-input" placeholder="Search by name or username..." oninput="loadAllUsers()">
 
-  <h2>Friend Requests</h2>
-  <div id="friend-requests"></div>
+  <div class="section">
+    <h2>Search Users</h2>
+    <input type="text" id="search-input" placeholder="Search by name or username..." oninput="loadAllUsers()">
+  </div>
 
-  <h2>All Users</h2>
-  <div id="user-list"></div>
+  <div class="section">
+    <h2>Friend Requests</h2>
+    <div id="friend-requests"></div>
+  </div>
 
-  <h2>Friends</h2>
-  <div id="friend-list"></div>
+  <div class="section">
+    <h2>All Users</h2>
+    <div id="user-list"></div>
+  </div>
+
+  <div class="section">
+    <h2>Your Friends</h2>
+    <div id="friend-list"></div>
+  </div>
 
   <script>
     const user = JSON.parse(localStorage.getItem('user'));
@@ -35,58 +111,56 @@
       renderFriends(data.user.friends);
     }
 
-async function loadAllUsers() {
-  const searchTerm = document.getElementById('search-input')?.value?.toLowerCase() || '';
+    async function loadAllUsers() {
+      const searchTerm = document.getElementById('search-input')?.value?.toLowerCase() || '';
 
-  const [usersRes, meRes, requestsRes] = await Promise.all([
-    fetch('https://test-5-jdfo.onrender.com/users'),
-    fetch('https://test-5-jdfo.onrender.com/me/' + user._id),
-    fetch('https://test-5-jdfo.onrender.com/friend-requests/' + user._id)
-  ]);
+      const [usersRes, meRes, requestsRes] = await Promise.all([
+        fetch('https://test-5-jdfo.onrender.com/users'),
+        fetch('https://test-5-jdfo.onrender.com/me/' + user._id),
+        fetch('https://test-5-jdfo.onrender.com/friend-requests/' + user._id)
+      ]);
 
-  const users = await usersRes.json();
-  const meData = await meRes.json();
-  const pendingRequests = await requestsRes.json();
+      const users = await usersRes.json();
+      const meData = await meRes.json();
+      const pendingRequests = await requestsRes.json();
 
-  const myFriends = meData.user.friends.map(f => f._id);
+      const myFriends = meData.user.friends.map(f => f._id);
 
-  const list = document.getElementById('user-list');
-  list.innerHTML = '';
+      const list = document.getElementById('user-list');
+      list.innerHTML = '';
 
-  users.forEach(u => {
-    if (u._id === user._id) return; // skip self
+      users.forEach(u => {
+        if (u._id === user._id) return;
 
-    const nameMatch = u.fullname.toLowerCase().includes(searchTerm);
-    const usernameMatch = u.username.toLowerCase().includes(searchTerm);
-    if (!nameMatch && !usernameMatch) return;
+        const nameMatch = u.fullname.toLowerCase().includes(searchTerm);
+        const usernameMatch = u.username.toLowerCase().includes(searchTerm);
+        if (!nameMatch && !usernameMatch) return;
 
-    const isFriend = myFriends.includes(u._id);
-    const alreadyRequested = pendingRequests.some(r => r.from._id === user._id && r.to === u._id);
+        const isFriend = myFriends.includes(u._id);
+        const alreadyRequested = pendingRequests.some(r => r.from._id === user._id && r.to === u._id);
 
-    const mutualFriends = u.friends?.filter(fid => myFriends.includes(fid)).length || 0;
+        const mutualFriends = u.friends?.filter(fid => myFriends.includes(fid)).length || 0;
 
-    const div = document.createElement('div');
-    div.className = 'user-card';
+        const div = document.createElement('div');
+        div.className = 'user-card';
 
-    let statusHTML = '';
-    if (isFriend) {
-      statusHTML = `<span style="color: green; font-weight: bold;">Friends</span>`;
-    } else if (alreadyRequested) {
-      statusHTML = `<button disabled>Request Sent</button>`;
-    } else {
-      statusHTML = `<button onclick="sendRequest('${u._id}')">Add Friend</button>`;
+        let statusHTML = '';
+        if (isFriend) {
+          statusHTML = `<span class="friend-badge">Friends</span>`;
+        } else if (alreadyRequested) {
+          statusHTML = `<button disabled>Request Sent</button>`;
+        } else {
+          statusHTML = `<button onclick="sendRequest('${u._id}')">Add Friend</button>`;
+        }
+
+        div.innerHTML = `
+          <strong>${u.fullname}</strong> (${u.username})<br>
+          <div class="mutual">Mutual Friends: ${mutualFriends}</div>
+          ${statusHTML}
+        `;
+        list.appendChild(div);
+      });
     }
-
-    div.innerHTML = `
-      ${u.fullname} (${u.username})
-      <br>
-      <small>Mutual Friends: ${mutualFriends}</small>
-      <br>
-      ${statusHTML}
-    `;
-    list.appendChild(div);
-  });
-}
 
     async function sendRequest(to) {
       await fetch('https://test-5-jdfo.onrender.com/friend-request', {
@@ -95,6 +169,7 @@ async function loadAllUsers() {
         body: JSON.stringify({ from: user._id, to })
       });
       alert('Request sent');
+      loadAllUsers();
     }
 
     async function loadRequests() {
@@ -105,7 +180,11 @@ async function loadAllUsers() {
       data.forEach(r => {
         const d = document.createElement('div');
         d.className = 'user-card';
-        d.innerHTML = `${r.from.fullname} <button onclick="accept('${r._id}')">Accept</button>`;
+        d.innerHTML = `
+          <strong>${r.from.fullname}</strong> (${r.from.username}) 
+          <br>
+          <button onclick="accept('${r._id}')">Accept</button>
+        `;
         div.appendChild(d);
       });
     }
@@ -119,6 +198,7 @@ async function loadAllUsers() {
       alert('Friend added');
       fetchUsers();
       loadRequests();
+      loadAllUsers();
     }
 
     function renderFriends(friends) {
@@ -127,7 +207,11 @@ async function loadAllUsers() {
       friends.forEach(friend => {
         const d = document.createElement('div');
         d.className = 'user-card';
-        d.innerHTML = `${friend.fullname} <a href="chat.html?fid=${friend._id}">Chat</a>`;
+        d.innerHTML = `
+          <strong>${friend.fullname}</strong> 
+          <br>
+          <a href="chat.html?fid=${friend._id}">Chat</a>
+        `;
         div.appendChild(d);
       });
     }
