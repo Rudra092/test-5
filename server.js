@@ -35,29 +35,34 @@ io.on('connection', (socket) => {
   });
 });
 
+// 🔗 Connect MongoDB
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-})
-.then(() => console.log('✅ MongoDB connected'))
-.catch(err => console.error('❌ MongoDB connection error:', err));
+}).then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB error:', err));
 
+// 👤 User Schema
 const User = mongoose.model('User', new mongoose.Schema({
   username: String,
   password: String,
   email: String,
   fullname: String,
-  phone: String
+  phone: String,
+  friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }));
 
+// ➕ Friend Request Schema
 const FriendRequest = mongoose.model('FriendRequest', new mongoose.Schema({
   from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  status: { type: String, enum: ['pending', 'accepted'], default: 'pending' }
+  status: { type: String, default: 'pending' } // pending, accepted
 }));
 
+// 📧 OTP Store
 const otps = {};
 
+// 📬 Nodemailer
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -66,9 +71,9 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// 📝 Register
 app.post('/register', async (req, res) => {
   const { username, email, password, fullname, phone } = req.body;
-
   if (!username || !email || !password) {
     return res.status(400).json({ success: false, message: 'All fields are required.' });
   }
@@ -80,25 +85,21 @@ app.post('/register', async (req, res) => {
 
   const user = new User({ username, email, password, fullname, phone });
   await user.save();
-
   res.json({ success: true, message: 'Registered successfully!' });
 });
 
+// 🔐 Login
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  try {
-    const found = await User.findOne({ username, password });
-    if (found) {
-      res.json({ success: true, message: 'Login successful!', user: found });
-    } else {
-      res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+  const found = await User.findOne({ username, password });
+  if (found) {
+    res.json({ success: true, user: found });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
 });
 
+// 📧 Request OTP
 app.post('/request-otp', async (req, res) => {
   const { email } = req.body;
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -111,13 +112,14 @@ app.post('/request-otp', async (req, res) => {
       subject: 'Password Reset OTP',
       html: `<p>Your OTP is: <strong>${otp}</strong></p>`
     });
+
     res.json({ success: true, message: 'OTP sent to email' });
   } catch (err) {
-    console.error('Email send error:', err);
     res.status(500).json({ success: false, message: 'Failed to send OTP' });
   }
 });
 
+// ✅ Verify OTP
 app.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;
   if (otps[email] === otp) {
@@ -127,59 +129,73 @@ app.post('/verify-otp', (req, res) => {
   }
 });
 
+// 🔁 Reset Password
 app.post('/reset-password', async (req, res) => {
   const { email, password } = req.body;
-  try {
-    const user = await User.findOneAndUpdate({ email }, { password });
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    delete otps[email];
-    res.json({ success: true, message: 'Password reset successfully' });
-  } catch (err) {
-    console.error('Reset error:', err);
-    res.status(500).json({ success: false, message: 'Failed to reset password' });
-  }
+  const user = await User.findOneAndUpdate({ email }, { password });
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+  delete otps[email];
+  res.json({ success: true, message: 'Password reset successfully' });
 });
 
+// 👤 Get current user + friends
 app.get('/me/:id', async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id, '-password');
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, user });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+  const user = await User.findById(req.params.id).populate('friends', 'fullname username');
+  if (!user) return res.status(404).json({ success: false });
+  res.json({ success: true, user });
 });
 
+// 🛠️ Update Profile
 app.put('/update-profile/:id', async (req, res) => {
   const { fullname, email, phone } = req.body;
-  try {
-    const user = await User.findByIdAndUpdate(req.params.id, { fullname, email, phone }, { new: true });
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, message: 'Profile updated!', user });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Update failed' });
-  }
+  const user = await User.findByIdAndUpdate(req.params.id, { fullname, email, phone }, { new: true });
+  if (!user) return res.status(404).json({ success: false });
+  res.json({ success: true, message: 'Profile updated!', user });
 });
 
-// Get all users
+// 👥 Get All Users
 app.get('/users', async (req, res) => {
-  try {
-    const users = await User.find({}, '-password');
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to get users' });
-  }
+  const users = await User.find({}, 'fullname username');
+  res.json(users);
 });
 
-// Get incoming friend requests for a user
+// ➕ Send Friend Request
+app.post('/friend-request', async (req, res) => {
+  const { from, to } = req.body;
+  const exists = await FriendRequest.findOne({ from, to, status: 'pending' });
+  if (exists) return res.status(400).json({ success: false, message: 'Already requested' });
+
+  await new FriendRequest({ from, to }).save();
+  res.json({ success: true });
+});
+
+// 📩 View Incoming Requests
 app.get('/friend-requests/:id', async (req, res) => {
-  try {
-    const requests = await FriendRequest.find({ to: req.params.id, status: 'pending' }).populate('from', '-password');
-    res.json(requests);
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Error fetching friend requests' });
-  }
+  const requests = await FriendRequest.find({ to: req.params.id, status: 'pending' }).populate('from', 'fullname username');
+  res.json(requests);
+});
+
+// ✅ Accept Friend Request
+app.post('/friend-request/accept', async (req, res) => {
+  const { requestId } = req.body;
+  const request = await FriendRequest.findById(requestId);
+  if (!request) return res.status(404).json({ success: false });
+
+  request.status = 'accepted';
+  await request.save();
+
+  const fromUser = await User.findById(request.from);
+  const toUser = await User.findById(request.to);
+
+  if (!fromUser.friends.includes(toUser._id)) fromUser.friends.push(toUser._id);
+  if (!toUser.friends.includes(fromUser._id)) toUser.friends.push(fromUser._id);
+
+  await fromUser.save();
+  await toUser.save();
+
+  res.json({ success: true });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server running with socket.io on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
