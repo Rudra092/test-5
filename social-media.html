@@ -200,15 +200,19 @@
       });
     }
 
-    async function sendRequest(to) {
-      await fetch('https://test-5-jdfo.onrender.com/friend-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: user._id, to })
-      });
-      alert('Friend request sent');
-      loadAllUsers();
-    }
+async function sendRequest(to) {
+  await fetch('https://test-5-jdfo.onrender.com/friend-request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: user._id, to })
+  });
+
+  const button = document.querySelector(`button[onclick="sendRequest('${to}')"]`);
+  if (button) {
+    button.textContent = 'Request Sent';
+    button.disabled = true;
+  }
+}
 
     async function loadRequests() {
       const res = await fetch(`https://test-5-jdfo.onrender.com/friend-requests/${user._id}`);
