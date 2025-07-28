@@ -6,24 +6,33 @@
   <title>Chat</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <style>
+    :root {
+      --primary: #1877f2;
+      --bg: #f0f2f5;
+      --text: #050505;
+      --bubble-me: #d1e7ff;
+      --bubble-you: #e4e6eb;
+    }
+
     * {
       box-sizing: border-box;
     }
 
     body {
       margin: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f0f2f5;
+      padding: 0;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      height: 100vh;
       display: flex;
       flex-direction: column;
-      height: 100vh;
     }
 
     header {
-      background-color: #1877f2;
+      background-color: var(--primary);
       color: white;
       padding: 15px;
-      font-size: 1.2rem;
+      font-size: 18px;
       font-weight: bold;
       text-align: center;
     }
@@ -32,97 +41,80 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      max-width: 800px;
-      margin: 0 auto;
       padding: 10px;
+      overflow-y: auto;
     }
 
-    #chat-box {
-      flex: 1;
-      background: white;
-      border-radius: 10px;
-      padding: 16px;
-      overflow-y: auto;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      margin-bottom: 10px;
+    .message-row {
+      display: flex;
+      margin: 8px 0;
+      align-items: flex-end;
+    }
+
+    .message.me {
+      background-color: var(--bubble-me);
+      margin-left: auto;
+    }
+
+    .message.you {
+      background-color: var(--bubble-you);
+      margin-right: auto;
     }
 
     .message {
-      padding: 10px 15px;
-      margin-bottom: 10px;
-      border-radius: 20px;
-      max-width: 75%;
-      font-size: 0.95rem;
+      max-width: 70%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: 15px;
       line-height: 1.4;
-      clear: both;
-      display: inline-block;
-    }
-
-    .sent {
-      background-color: #1877f2;
-      color: white;
-      float: right;
-      border-bottom-right-radius: 0;
-    }
-
-    .received {
-      background-color: #e4e6eb;
-      color: black;
-      float: left;
-      border-bottom-left-radius: 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      word-wrap: break-word;
     }
 
     #input-area {
       display: flex;
-      gap: 10px;
-      background: white;
       padding: 10px;
+      background: white;
       border-top: 1px solid #ccc;
-      position: sticky;
-      bottom: 0;
     }
 
     #message-input {
       flex: 1;
       padding: 12px;
-      border-radius: 25px;
       border: 1px solid #ccc;
-      font-size: 1rem;
+      border-radius: 20px;
+      font-size: 15px;
+      outline: none;
     }
 
     #send-button {
-      background-color: #1877f2;
+      background: var(--primary);
       color: white;
-      padding: 10px 16px;
       border: none;
-      border-radius: 25px;
+      padding: 10px 18px;
+      margin-left: 8px;
+      border-radius: 20px;
       font-weight: bold;
       cursor: pointer;
-      font-size: 1rem;
     }
 
     #send-button:hover {
-      background-color: #145dbf;
+      background: #145dbf;
     }
 
     @media (max-width: 600px) {
-      header {
-        font-size: 1rem;
-        padding: 12px;
-      }
-
-      #chat-container {
-        padding: 5px;
-      }
-
-      #message-input {
-        font-size: 0.9rem;
+      .message {
+        max-width: 85%;
+        font-size: 14px;
       }
 
       #send-button {
-        padding: 8px 12px;
-        font-size: 0.9rem;
+        padding: 8px 14px;
+        font-size: 14px;
+      }
+
+      #message-input {
+        font-size: 14px;
       }
     }
   </style>
@@ -133,13 +125,11 @@
     Chat with <span id="friend-name">...</span>
   </header>
 
-  <div id="chat-container">
-    <div id="chat-box"></div>
+  <div id="chat-container"></div>
 
-    <div id="input-area">
-      <input type="text" id="message-input" placeholder="Type a message..." />
-      <button id="send-button" onclick="sendMessage()">Send</button>
-    </div>
+  <div id="input-area">
+    <input type="text" id="message-input" placeholder="Type a message..." />
+    <button id="send-button" onclick="sendMessage()">Send</button>
   </div>
 
   <script>
@@ -147,23 +137,20 @@
     const user = JSON.parse(localStorage.getItem('user'));
     const urlParams = new URLSearchParams(window.location.search);
     const friendId = urlParams.get('fid');
-    const chatBox = document.getElementById('chat-box');
+    const chatContainer = document.getElementById('chat-container');
 
-    // Load friend's name
     fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
       .then(res => res.json())
       .then(data => {
         document.getElementById('friend-name').textContent = data.user.fullname;
       });
 
-    // Notify connection
     socket.emit('user-connected', user.username);
 
-    // Receive message
     socket.on('chat-message', (msg) => {
       if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
-        const type = msg.from === user._id ? 'sent' : 'received';
-        appendMessage(msg.text, type);
+        const type = msg.from === user._id ? 'me' : 'you';
+        addMessage(msg.text, type);
       }
     });
 
@@ -171,18 +158,22 @@
       const input = document.getElementById('message-input');
       const text = input.value.trim();
       if (!text) return;
-
       socket.emit('chat-message', { from: user._id, to: friendId, text });
-      appendMessage(text, 'sent');
+      addMessage(text, 'me');
       input.value = '';
     }
 
-    function appendMessage(text, type) {
-      const div = document.createElement('div');
-      div.classList.add('message', type);
-      div.textContent = text;
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
+    function addMessage(text, type) {
+      const row = document.createElement('div');
+      row.className = `message-row`;
+
+      const bubble = document.createElement('div');
+      bubble.className = `message ${type}`;
+      bubble.textContent = text;
+
+      row.appendChild(bubble);
+      chatContainer.appendChild(row);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
     }
   </script>
 </body>
