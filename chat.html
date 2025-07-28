@@ -154,14 +154,15 @@
       }
     });
 
-    function sendMessage() {
-      const input = document.getElementById('message-input');
-      const text = input.value.trim();
-      if (!text) return;
-      socket.emit('chat-message', { from: user._id, to: friendId, text });
-      addMessage(text, 'me');
-      input.value = '';
-    }
+function sendMessage() {
+  const input = document.getElementById('message-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  socket.emit('chat-message', { from: user._id, to: friendId, text });
+  input.value = '';
+}
+
 
     function addMessage(text, type) {
       const row = document.createElement('div');
