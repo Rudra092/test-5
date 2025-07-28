@@ -1,120 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF‑8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Chat</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.css" />
   <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f9;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-
-    header {
-      background: #007bff;
-      color: white;
-      padding: 1rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    #status {
-      font-size: 0.9rem;
-      opacity: 0.8;
-    }
-
-    #chat-box {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1rem;
-      background: white;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .message {
-      margin-bottom: 10px;
-      padding: 10px;
-      border-radius: 10px;
-      background: #e1f5fe;
-      max-width: 70%;
-      align-self: flex-start;
-    }
-
-    .message.you {
-      background: #d0f0c0;
-      align-self: flex-end;
-    }
-
-    .timestamp {
-      font-size: 0.75rem;
-      color: #666;
-      margin-top: 5px;
-    }
-
-    #typing-indicator {
-      padding: 0 1rem;
-      font-style: italic;
-      color: #888;
-      margin-bottom: 5px;
-    }
-
-    #message-controls {
-      display: flex;
-      padding: 1rem;
-      background: #fff;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    #message-input {
-      flex: 1;
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-    }
-
-    button {
-      padding: 10px 15px;
-      border: none;
-      background: #007bff;
-      color: white;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-
-    input[type="file"] {
-      display: none;
-    }
-
-    label svg {
-      width: 24px;
-      height: 24px;
-      cursor: pointer;
-      fill: #007bff;
-    }
-
-    .file-preview {
-      max-width: 200px;
-      margin-top: 10px;
-      border-radius: 6px;
-    }
+    body { font-family: Arial, sans-serif; background: #f4f6f9; margin:0; display:flex; flex-direction:column; height:100vh; }
+    header { background:#007bff; color:#fff; padding:1rem; display:flex; align-items:center; justify-content:space-between; }
+    #status { font-size:0.9rem; opacity:0.8; margin-left:10px; }
+    #chat-box { flex:1; overflow-y:auto; padding:1rem; display:flex; flex-direction:column; gap:10px; }
+    .date-group { text-align:center; color:#666; font-size:0.85rem; margin:20px 0 10px; }
+    .message-row { display:flex; gap:10px; align-items:flex-end; }
+    .avatar { width:32px; height:32px; border-radius:50%; background:#ccc; flex-shrink:0; }
+    .message { padding:10px; border-radius:10px; max-width:70%; background:#e1f5fe; position:relative; }
+    .message.you { background:#d0f0c0; align-self:flex-end; }
+    .timestamp { font-size:0.75rem; color:#666; margin-top:4px; position:absolute; bottom:-18px; right:8px; }
+    .seen { font-size:0.7rem; color:#666; margin-left:4px; }
+    #typing-indicator { padding:0 1rem; font-style:italic; color:#888; margin-bottom:5px; }
+    #message-controls { display:flex; padding:1rem; background:#fff; align-items:center; gap:0.5rem; }
+    #message-input { flex:1; padding:10px; border:1px solid #ccc; border-radius:8px; }
+    button { padding:10px 15px; border:none; background:#007bff; color:#fff; border-radius:8px; cursor:pointer; }
+    label.upload { cursor:pointer; }
+    label.upload svg { width:24px; height:24px; fill:#007bff; }
+    .file-preview { max-width:200px; border-radius:6px; margin-top:8px; }
+    .drop-zone { border:2px dashed #ccc; padding:20px; text-align:center; margin:10px; border-radius:8px; }
+    .drop-zone.dragover { background:#e1f5fe; }
   </style>
 </head>
 <body>
   <header>
     <div>
-      Chat with <span id="friend-name">...</span>
-      <div id="status">(Offline)</div>
+      Chat with <strong id="friend-name">...</strong>
+      <span id="status">(Offline)</span>
     </div>
   </header>
 
@@ -122,130 +42,123 @@
   <div id="typing-indicator"></div>
 
   <div id="message-controls">
-    <!-- SVG Attach Icon -->
-    <label for="file-upload" title="Attach File">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-        <path d="M16.5,6.5L8.91,14.09c-1.17,1.17-3.07,1.17-4.24,0s-1.17-3.07,0-4.24L12.5,2.5c1.95-1.95,5.12-1.95,7.07,0s1.95,5.12,0,7.07 l-9.19,9.19c-2.34,2.34-6.14,2.34-8.49,0s-2.34-6.14,0-8.49L12.5,2.5" fill="none" stroke="currentColor" stroke-width="2"/>
-      </svg>
+    <label class="upload" title="Attach File">
+      ➕
+      <input type="file" id="file-upload" accept="image/*" style="display:none;" />
     </label>
-    <input type="file" id="file-upload" accept="image/*" />
-
-    <input type="text" id="message-input" placeholder="Type your message..." />
+    <input type="text" id="message-input" placeholder="Type your message…" />
     <button onclick="toggleEmoji()">😊</button>
     <button onclick="sendMessage()">Send</button>
   </div>
 
-  <emoji-picker id="emoji-picker" style="display:none; position:absolute; bottom: 70px; right: 20px;"></emoji-picker>
+  <emoji-picker id="emoji-picker" style="display:none; position:absolute; bottom:70px; right:20px;"></emoji-picker>
 
   <script>
     const socket = io('https://test-5-jdfo.onrender.com');
     const user = JSON.parse(localStorage.getItem('user'));
-    const urlParams = new URLSearchParams(window.location.search);
-    const friendId = urlParams.get('fid');
-
+    const friendId = new URLSearchParams(window.location.search).get('fid');
     const chatBox = document.getElementById('chat-box');
-    const messageInput = document.getElementById('message-input');
+    const input = document.getElementById('message-input');
     const typingIndicator = document.getElementById('typing-indicator');
     const fileInput = document.getElementById('file-upload');
-    let friendName = '';
+    const friendNameEl = document.getElementById('friend-name');
+    const statusEl = document.getElementById('status');
 
-    // Fetch friend's name
+    let friendData = {};
+
     fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
-      .then(res => res.json())
-      .then(data => {
-        friendName = data.user.fullname;
-        document.getElementById('friend-name').textContent = friendName;
-      });
+      .then(r=>r.json()).then(d => { friendData = d.user; friendNameEl.textContent = friendData.fullname; });
 
-    // Online status
-    socket.emit('user-connected', user._id);
+    socket.emit('user-connected', { id: user._id, name: user.fullname });
     socket.on('update-status', ({ userId, status }) => {
-      if (userId === friendId) {
-        document.getElementById('status').textContent = status ? 'Online' : 'Offline';
-      }
+      if (userId === friendId) statusEl.textContent = status ? 'Online' : 'Offline';
     });
 
-    // Typing
-    messageInput.addEventListener('input', () => {
-      socket.emit('typing', { to: friendId, from: user._id });
+    input.addEventListener('input', () => {
+      socket.emit('typing', { from: user._id, to: friendId });
     });
 
     socket.on('typing', ({ from }) => {
       if (from === friendId) {
-        typingIndicator.textContent = `${friendName} is typing...`;
-        clearTimeout(typingIndicator.timeout);
-        typingIndicator.timeout = setTimeout(() => {
-          typingIndicator.textContent = '';
-        }, 1500);
+        typingIndicator.textContent = `${friendData.fullname} is typing…`;
+        clearTimeout(typingIndicator.timer);
+        typingIndicator.timer = setTimeout(() => typingIndicator.textContent = '', 1500);
       }
     });
 
-    // Receiving message
-    socket.on('chat-message', (msg) => {
-      if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
-        const div = document.createElement('div');
-        div.className = 'message';
-        if (msg.from === user._id) div.classList.add('you');
-
-        if (msg.image) {
-          const img = document.createElement('img');
-          img.src = msg.image;
-          img.className = 'file-preview';
-          div.appendChild(img);
-        }
-
-        if (msg.text) {
-          const text = document.createElement('div');
-          text.textContent = msg.text;
-          div.appendChild(text);
-        }
-
-        const time = new Date(msg.time || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const timestamp = document.createElement('div');
-        timestamp.className = 'timestamp';
-        timestamp.textContent = time;
-        div.appendChild(timestamp);
-
-        chatBox.appendChild(div);
-        chatBox.scrollTop = chatBox.scrollHeight;
+    let lastDate;
+    function renderMessage(msg) {
+      const dt = new Date(msg.time).toDateString();
+      if (dt !== lastDate) {
+        const grp = document.createElement('div');
+        grp.className = 'date-group';
+        grp.textContent = dt;
+        chatBox.append(grp);
+        lastDate = dt;
       }
-    });
+      const row = document.createElement('div');
+      row.className = 'message-row';
+      const avatar = document.createElement('img');
+      avatar.className = 'avatar';
+      avatar.src = msg.from === user._id ? user.avatar || '' : (friendData.avatar || '');
+      row.append(avatar);
+
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message' + (msg.from === user._id ? ' you' : '');
+      if (msg.image) {
+        const img = document.createElement('img');
+        img.src = msg.image;
+        img.className = 'file-preview';
+        msgDiv.append(img);
+      }
+      if (msg.text) msgDiv.append(document.createTextNode(msg.text));
+
+      const time = document.createElement('div');
+      time.className = 'timestamp';
+      time.textContent = new Date(msg.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      msgDiv.append(time);
+
+      if (msg.from === user._id && msg.seen) {
+        const seen = document.createElement('span');
+        seen.className = 'seen';
+        seen.textContent = 'Seen';
+        msgDiv.append(seen);
+      }
+
+      row.append(msgDiv);
+      chatBox.append(row);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    socket.on('chat-message', msg => renderMessage(msg));
 
     function sendMessage() {
-      const text = messageInput.value.trim();
-      const file = fileInput.files[0];
-
+      const text = input.value.trim(), file = fileInput.files[0];
       if (!text && !file) return;
-
-      const msg = {
-        from: user._id,
-        to: friendId,
-        text: text || '',
-        time: new Date().toISOString()
-      };
-
+      const msg = { from:user._id,to:friendId,text, time:new Date().toISOString() };
+      function emitMsg() {
+        socket.emit('chat-message', msg);
+        input.value = ''; fileInput.value = '';
+      }
       if (file) {
         const reader = new FileReader();
-        reader.onload = () => {
-          msg.image = reader.result;
-          socket.emit('chat-message', msg);
-        };
+        reader.onload = () => { msg.image = reader.result; emitMsg(); };
         reader.readAsDataURL(file);
-      } else {
-        socket.emit('chat-message', msg);
+      } else emitMsg();
+    }
+
+    function toggleEmoji() { const pk = document.getElementById('emoji-picker'); pk.style.display = pk.style.display==='none'?'block':'none'; }
+    document.getElementById('emoji-picker').addEventListener('emoji-click', e => input.value += e.detail.unicode);
+
+    // Drag & drop support
+    document.body.addEventListener('dragover', e=>{ e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
+    document.body.addEventListener('drop', e=>{
+      e.preventDefault();
+      const f = e.dataTransfer.files[0];
+      if (f && f.type.startsWith('image/')) {
+        fileInput.files = e.dataTransfer.files;
+        sendMessage();
       }
-
-      messageInput.value = '';
-      fileInput.value = '';
-    }
-
-    function toggleEmoji() {
-      const picker = document.getElementById('emoji-picker');
-      picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
-    }
-
-    document.getElementById('emoji-picker').addEventListener('emoji-click', e => {
-      messageInput.value += e.detail.unicode;
     });
   </script>
 </body>
