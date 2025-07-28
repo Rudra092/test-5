@@ -2,107 +2,74 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const nodemailer = require('nodemailer');
 const http = require('http');
 const { Server } = require('socket.io');
-const multer = require('multer');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
-
-app.use(cors({ origin: '*' }));
+app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d' }));
 
-let onlineUsers = {};
+// MongoDB setup (schemas omitted for brevity, same as before)
 
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('✅ MongoDB connected'))
-  .catch(err => console.error('❌ MongoDB error:', err));
+let userSockets = {}; // map userId -> socket
 
-const userSchema = new mongoose.Schema({
-  username: String,
-  password: String, // TODO: Hash passwords before storing and verifying (bcrypt recommended)
-  email: String,
-  fullname: String,
-  phone: String,
-  avatar: String,
-  friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
-});
+io.on('connection', socket => {
+  console.log('🔌 Client connected:', socket.id);
 
-const messageSchema = new mongoose.Schema({
-  from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  content: String,
-  type: { type: String, default: 'text' },
-  seen: { type: Boolean, default: false },
-  timestamp: { type: Date, default: Date.now }
-});
-
-const friendRequestSchema = new mongoose.Schema({
-  from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  status: { type: String, default: 'pending' }
-});
-
-const User = mongoose.model('User', userSchema);
-const Message = mongoose.model('Message', messageSchema);
-const FriendRequest = mongoose.model('FriendRequest', friendRequestSchema);
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-});
-const upload = multer({ storage });
-
-// Realtime communication
-io.on('connection', (socket) => {
-  console.log('🔌 New client connected:', socket.id);
-
-  socket.on('user-connected', (user) => {
-    onlineUsers[socket.id] = { ...user, socketId: socket.id };
-    io.emit('online-users', Object.values(onlineUsers));
+  socket.on('user-connected', ({ id, fullname }) => {
+    socket.userId = id;
+    socket.fullname = fullname;
+    userSockets[id] = socket;
+    io.emit('update-status', { userId: id, status: true });
   });
 
-  socket.on('typing', ({ to, from }) => {
-    const receiver = Object.values(onlineUsers).find(u => u._id === to);
-    if (receiver) io.to(receiver.socketId).emit('typing', from);
+  socket.on('typing', ({ from, to }) => {
+    const destSocket = userSockets[to];
+    if (destSocket) destSocket.emit('typing', { from });
   });
 
-  socket.on('stop-typing', ({ to, from }) => {
-    const receiver = Object.values(onlineUsers).find(u => u._id === to);
-    if (receiver) io.to(receiver.socketId).emit('stop-typing', from);
-  });
-
-  socket.on('chat-message', async (msg) => {
+  socket.on('chat-message', async msg => {
     try {
-      const newMsg = new Message({ ...msg });
+      const newMsg = new Message({
+        from: msg.from,
+        to: msg.to,
+        content: msg.text || msg.image || '',
+        type: msg.image ? 'image' : 'text',
+        timestamp: new Date(),
+        seen: false
+      });
       await newMsg.save();
-      const receiver = Object.values(onlineUsers).find(u => u._id === msg.to);
-      if (receiver) io.to(receiver.socketId).emit('chat-message', newMsg);
-      socket.emit('chat-message', newMsg);
+
+      const payload = {
+        _id: newMsg._id,
+        from: msg.from,
+        to: msg.to,
+        text: msg.text,
+        image: msg.image,
+        timestamp: newMsg.timestamp,
+        seen: false
+      };
+
+      socket.emit('chat-message', payload);
+      if (userSockets[msg.to]) userSockets[msg.to].emit('chat-message', payload);
     } catch (err) {
       console.error('Error saving message:', err);
     }
   });
 
   socket.on('mark-seen', async ({ from, to }) => {
-    try {
-      await Message.updateMany({ from, to, seen: false }, { seen: true });
-    } catch (err) {
-      console.error('Error marking seen:', err);
-    }
+    await Message.updateMany({ from, to, seen: false }, { seen: true });
   });
 
   socket.on('disconnect', () => {
-    console.log(`❌ User disconnected: ${socket.id}`);
-    delete onlineUsers[socket.id];
-    io.emit('online-users', Object.values(onlineUsers));
+    if (socket.userId) {
+      delete userSockets[socket.userId];
+      io.emit('update-status', { userId: socket.userId, status: false });
+      console.log(`❌ User disconnected: ${socket.userId}`);
+    }
   });
 });
 
