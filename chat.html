@@ -1,104 +1,56 @@
+<!-- public/chat.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; }
-    #chat-box { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; }
-    .message { margin: 5px 0; }
-    .own { text-align: right; color: blue; }
-    .other { text-align: left; color: green; }
-    .status { font-size: 0.8rem; color: gray; margin-bottom: 10px; }
+    #chat-box { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
+    #message-input { width: 80%; }
   </style>
 </head>
 <body>
-  <h2>Chat Room</h2>
-  <div id="status" class="status">Connecting...</div>
+  <h2>Chat with <span id="friend-name"></span></h2>
   <div id="chat-box"></div>
-  <input id="message" placeholder="Type a message..." />
+  <input type="text" id="message-input" placeholder="Type your message...">
   <button onclick="sendMessage()">Send</button>
 
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
-    const user = JSON.parse(localStorage.getItem("user"));
-    const friend = JSON.parse(localStorage.getItem("chatFriend"));
+    const socket = io('https://test-5-jdfo.onrender.com');
+    const user = JSON.parse(localStorage.getItem('user'));
+    const urlParams = new URLSearchParams(window.location.search);
+    const friendId = urlParams.get('fid');
 
-    const socket = io("https://test-5-jdfo.onrender.com", {
-      transports: ["websocket"],
-      reconnection: true,
-    });
-
-    const chatBox = document.getElementById("chat-box");
-    const status = document.getElementById("status");
-
-    let isTyping = false;
-
-    socket.on("connect", () => {
-      socket.emit("user-connected", {
-        _id: user._id,
-        fullname: user.fullname,
+    // You should fetch friend info here
+    fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('friend-name').textContent = data.user.fullname;
       });
-      status.textContent = "Connected";
-    });
 
-    socket.on("connect_error", (err) => {
-      console.error("Socket connection error:", err);
-      status.textContent = "Disconnected";
-    });
+    const chatBox = document.getElementById('chat-box');
 
-    socket.on("online-users", (users) => {
-      const isOnline = users.find((u) => u._id === friend._id);
-      status.textContent = isOnline ? "Friend is online" : "Friend is offline";
-    });
+    socket.emit('user-connected', user.username);
 
-    socket.on("chat-message", (msg) => {
-      if (
-        (msg.from === friend._id && msg.to === user._id) ||
-        (msg.from === user._id && msg.to === friend._id)
-      ) {
-        appendMessage(msg);
-        if (msg.from === friend._id) {
-          socket.emit("mark-seen", { from: friend._id, to: user._id });
-        }
+    socket.on('chat-message', (msg) => {
+      if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
+        const div = document.createElement('div');
+        div.textContent = `${msg.from === user._id ? 'You' : 'Friend'}: ${msg.text}`;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
       }
     });
 
     function sendMessage() {
-      const input = document.getElementById("message");
-      const content = input.value.trim();
-      if (!content) return;
-
-      const msg = {
-        from: user._id,
-        to: friend._id,
-        content,
-        type: "text",
-        seen: false,
-        timestamp: new Date(),
-      };
-
-      socket.emit("chat-message", msg);
-      input.value = "";
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (!text) return;
+      socket.emit('chat-message', { from: user._id, to: friendId, text });
+      input.value = '';
     }
-
-    function appendMessage(msg) {
-      const div = document.createElement("div");
-      div.classList.add("message");
-      div.classList.add(msg.from === user._id ? "own" : "other");
-      div.textContent = msg.content + (msg.seen ? " ✔" : "");
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    window.onload = async () => {
-      const res = await fetch(
-        `https://test-5-jdfo.onrender.com/messages/${user._id}/${friend._id}`
-      );
-      const messages = await res.json();
-      messages.forEach(appendMessage);
-    };
   </script>
 </body>
 </html>
