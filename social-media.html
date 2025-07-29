@@ -210,64 +210,64 @@
     updateFriendStatuses();
   }
 
-  async function loadAllUsers() {
-    const searchTerm = document.getElementById('search-input')?.value?.toLowerCase() || '';
-    const [usersRes, meRes, requestsRes, sentReqRes] = await Promise.all([
-  fetch('https://test-5-jdfo.onrender.com/users'),
-  fetch('https://test-5-jdfo.onrender.com/me/' + user._id),
-  fetch('https://test-5-jdfo.onrender.com/friend-requests/' + user._id),
-  fetch('https://test-5-jdfo.onrender.com/friend-requests/sent/' + user._id)
-]);
+async function loadAllUsers() {
+  const searchTerm = document.getElementById('search-input')?.value?.toLowerCase() || '';
 
-const users = await usersRes.json();
-const meData = await meRes.json();
-const incomingRequests = await requestsRes.json();
-const sentRequests = await sentReqRes.json();
-const sentToIds = sentRequests.map(req => req.to._id); // ✅ fix
+  const [usersRes, meRes, requestsRes, sentReqRes] = await Promise.all([
+    fetch('https://test-5-jdfo.onrender.com/users'),
+    fetch('https://test-5-jdfo.onrender.com/me/' + user._id),
+    fetch('https://test-5-jdfo.onrender.com/friend-requests/' + user._id),
+    fetch('https://test-5-jdfo.onrender.com/friend-requests/sent/' + user._id)
+  ]);
 
-const myFriends = meData.user.friends.map(f => f._id);
+  const users = await usersRes.json();
+  const meData = await meRes.json();
+  const incomingRequests = await requestsRes.json(); // from others to me
+  const sentRequests = await sentReqRes.json();      // from me to others
+  const sentToIds = sentRequests.map(r => r.to._id); // FIX HERE
+  const myFriends = meData.user.friends.map(f => f._id);
 
-    const list = document.getElementById('user-list');
-    list.innerHTML = '';
+  const list = document.getElementById('user-list');
+  list.innerHTML = '';
 
-    users.forEach(u => {
-      if (u._id === user._id) return;
-      const nameMatch = u.fullname.toLowerCase().includes(searchTerm);
-      const usernameMatch = u.username.toLowerCase().includes(searchTerm);
-      if (!nameMatch && !usernameMatch) return;
+  users.forEach(u => {
+    if (u._id === user._id) return;
+    const nameMatch = u.fullname.toLowerCase().includes(searchTerm);
+    const usernameMatch = u.username.toLowerCase().includes(searchTerm);
+    if (!nameMatch && !usernameMatch) return;
 
-      const isFriend = myFriends.includes(u._id);
-      const hasSentRequest = sentRequests.includes(u._id);
-      const hasIncomingRequest = incomingRequests.some(r => r.from._id === u._id);
+    const isFriend = myFriends.includes(u._id);
+    const hasSentRequest = sentToIds.includes(u._id);           // FIXED
+    const hasIncomingRequest = incomingRequests.some(r => r.from._id === u._id);
 
-      const mutualFriends = u.friends?.filter(fid => myFriends.includes(fid)).length || 0;
+    const mutualFriends = u.friends?.filter(fid => myFriends.includes(fid)).length || 0;
 
-      const div = document.createElement('div');
-      div.className = 'user-card';
+    const div = document.createElement('div');
+    div.className = 'user-card';
 
-      const info = document.createElement('div');
-      info.className = 'user-info';
-      info.innerHTML = `
-        <strong>${u.fullname}</strong> (${u.username})<br>
-        <small class="muted">Mutual Friends: ${mutualFriends}</small>
-      `;
+    const info = document.createElement('div');
+    info.className = 'user-info';
+    info.innerHTML = `
+      <strong>${u.fullname}</strong> (${u.username})<br>
+      <small class="muted">Mutual Friends: ${mutualFriends}</small>
+    `;
 
-      const actions = document.createElement('div');
-      if (isFriend) {
-        actions.innerHTML = `<span style="color: green; font-weight: bold;">Friends</span>`;
-      } else if (hasSentRequest) {
-        actions.innerHTML = `<button disabled>Request Sent</button>`;
-      } else if (hasIncomingRequest) {
-        actions.innerHTML = `<button disabled>Requested You</button>`;
-      } else {
-        actions.innerHTML = `<button onclick="sendRequest('${u._id}')">Add Friend</button>`;
-      }
+    const actions = document.createElement('div');
+    if (isFriend) {
+      actions.innerHTML = `<span style="color: green; font-weight: bold;">Friends</span>`;
+    } else if (hasSentRequest) {
+      actions.innerHTML = `<button disabled>Request Sent</button>`;
+    } else if (hasIncomingRequest) {
+      actions.innerHTML = `<button disabled>Requested You</button>`;
+    } else {
+      actions.innerHTML = `<button onclick="sendRequest('${u._id}')">Add Friend</button>`;
+    }
 
-      div.appendChild(info);
-      div.appendChild(actions);
-      list.appendChild(div);
-    });
-  }
+    div.appendChild(info);
+    div.appendChild(actions);
+    list.appendChild(div);
+  });
+}
 
   async function sendRequest(to) {
     await fetch('https://test-5-jdfo.onrender.com/friend-request', {
