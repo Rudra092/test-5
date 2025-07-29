@@ -40,8 +40,7 @@ io.on('connection', (socket) => {
   });
 });
 
-
-// 🔗 Connect MongoDB
+// 🔗 MongoDB
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -169,25 +168,37 @@ app.put('/update-profile/:id', async (req, res) => {
   res.json({ success: true, message: 'Profile updated!', user });
 });
 
-// GET all users with their friend IDs
+// 👥 All users with friends field
 app.get('/users', async (req, res) => {
-  const users = await User.find({}, 'username fullname friends'); // include friends field
+  const users = await User.find({}, 'username fullname friends');
   res.json(users);
 });
 
-// ➕ Send Friend Request
+// ➕ Send Friend Request (prevent duplicates)
 app.post('/friend-request', async (req, res) => {
   const { from, to } = req.body;
-  const exists = await FriendRequest.findOne({ from, to, status: 'pending' });
+  const exists = await FriendRequest.findOne({
+    $or: [
+      { from, to },
+      { from: to, to: from }
+    ],
+    status: 'pending'
+  });
   if (exists) return res.status(400).json({ success: false, message: 'Already requested' });
 
   await new FriendRequest({ from, to }).save();
   res.json({ success: true });
 });
 
-// 📩 View Incoming Requests
+// 📩 Incoming friend requests
 app.get('/friend-requests/:id', async (req, res) => {
   const requests = await FriendRequest.find({ to: req.params.id, status: 'pending' }).populate('from', 'fullname username');
+  res.json(requests);
+});
+
+// 📤 Outgoing friend requests (to show "Request Sent")
+app.get('/friend-requests/sent/:id', async (req, res) => {
+  const requests = await FriendRequest.find({ from: req.params.id, status: 'pending' }).populate('to', 'fullname username');
   res.json(requests);
 });
 
