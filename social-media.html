@@ -21,9 +21,25 @@
       background: #1877f2;
       color: white;
       padding: 16px;
-      text-align: center;
       font-size: 1.5rem;
       font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #logout-btn {
+      background: white;
+      color: #1877f2;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    #logout-btn:hover {
+      background: #e0e0e0;
     }
 
     .container {
@@ -112,7 +128,8 @@
 </head>
 <body>
   <header>
-    Welcome, <span id="user-name"></span>!
+    <div>Welcome, <span id="user-name"></span>!</div>
+    <button id="logout-btn">Logout</button>
   </header>
 
   <div class="container">
@@ -140,7 +157,15 @@
 
   <script>
     const user = JSON.parse(localStorage.getItem('user'));
+    if (!user) {
+      window.location.href = 'login.html';
+    }
+
     document.getElementById('user-name').textContent = user.fullname;
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      localStorage.removeItem('user');
+      window.location.href = 'login.html';
+    });
 
     async function fetchUsers() {
       const res = await fetch('https://test-5-jdfo.onrender.com/me/' + user._id);
@@ -201,19 +226,19 @@
       });
     }
 
-async function sendRequest(to) {
-  await fetch('https://test-5-jdfo.onrender.com/friend-request', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: user._id, to })
-  });
+    async function sendRequest(to) {
+      await fetch('https://test-5-jdfo.onrender.com/friend-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: user._id, to })
+      });
 
-  const button = document.querySelector(`button[onclick="sendRequest('${to}')"]`);
-  if (button) {
-    button.textContent = 'Request Sent';
-    button.disabled = true;
-  }
-}
+      const button = document.querySelector(`button[onclick="sendRequest('${to}')"]`);
+      if (button) {
+        button.textContent = 'Request Sent';
+        button.disabled = true;
+      }
+    }
 
     async function loadRequests() {
       const res = await fetch(`https://test-5-jdfo.onrender.com/friend-requests/${user._id}`);
@@ -244,51 +269,53 @@ async function sendRequest(to) {
       loadAllUsers();
     }
 
-function renderFriends(friends) {
-  const div = document.getElementById('friend-list');
-  div.innerHTML = '';
-  friends.forEach(friend => {
-    const d = document.createElement('div');
-    d.className = 'user-card';
-    d.setAttribute('data-id', friend._id);
-    d.innerHTML = `
-      <div class="user-info">
-        <strong>${friend.fullname}</strong> (${friend.username})<br>
-        <small class="status">⚫ Offline</small>
-      </div>
-      <div><a href="chat.html?fid=${friend._id}">💬 Chat</a></div>
-    `;
-    div.appendChild(d);
-  });
+    function renderFriends(friends) {
+      const div = document.getElementById('friend-list');
+      div.innerHTML = '';
+      friends.forEach(friend => {
+        const d = document.createElement('div');
+        d.className = 'user-card';
+        d.setAttribute('data-id', friend._id);
+        d.innerHTML = `
+          <div class="user-info">
+            <strong>${friend.fullname}</strong> (${friend.username})<br>
+            <small class="status">⚫ Offline</small>
+          </div>
+          <div><a href="chat.html?fid=${friend._id}">💬 Chat</a></div>
+        `;
+        div.appendChild(d);
+      });
 
-  updateFriendStatuses(); // Immediately show status after render
-}
+      updateFriendStatuses();
+    }
+
     fetchUsers();
     loadAllUsers();
     loadRequests();
   </script>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<script>
-  const socket = io('https://test-5-jdfo.onrender.com'); // Update if needed
-  const userId = user._id;
-  socket.emit('user-connected', userId);
 
-  let onlineIds = [];
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const socket = io('https://test-5-jdfo.onrender.com');
+    const userId = user._id;
+    socket.emit('user-connected', userId);
 
-  socket.on('online-users', (ids) => {
-    onlineIds = ids;
-    updateFriendStatuses(); // Re-render friends with online/offline indicators
-  });
+    let onlineIds = [];
 
-  function updateFriendStatuses() {
-    const friends = document.querySelectorAll('#friend-list .user-card');
-    friends.forEach(card => {
-      const userId = card.getAttribute('data-id');
-      const status = onlineIds.includes(userId) ? '🟢 Online' : '⚫ Offline';
-      const statusSpan = card.querySelector('.status');
-      if (statusSpan) statusSpan.textContent = status;
+    socket.on('online-users', (ids) => {
+      onlineIds = ids;
+      updateFriendStatuses();
     });
-  }
-</script>
+
+    function updateFriendStatuses() {
+      const friends = document.querySelectorAll('#friend-list .user-card');
+      friends.forEach(card => {
+        const userId = card.getAttribute('data-id');
+        const status = onlineIds.includes(userId) ? '🟢 Online' : '⚫ Offline';
+        const statusSpan = card.querySelector('.status');
+        if (statusSpan) statusSpan.textContent = status;
+      });
+    }
+  </script>
 </body>
 </html>
