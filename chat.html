@@ -168,17 +168,12 @@
     statusEl.textContent = isFriendOnline ? '(online 🟢)' : '(offline ⚫)';
   });
 
-  socket.on('chat-message', (msg) => {
-    if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
-      const type = msg.from === user._id ? 'me' : 'you';
-      const row = addMessage(msg.text, type, msg._id, msg.seen, msg.timestamp);
-
-      // If the message was sent TO me, mark it as seen
-      if (msg.to === user._id && msg.from === friendId) {
-        socket.emit('seen-message', { messageId: msg._id, from: msg.from, to: msg.to });
-      }
-    }
-  });
+socket.on('chat-message', (msg) => {
+  if (msg.from === friendId && msg.to === user._id) {
+    addMessage(msg.text, 'you', msg._id, false, msg.timestamp);
+    socket.emit('seen-message', { messageId: msg._id, from: msg.from, to: msg.to });
+  }
+});
 
   socket.on('message-seen', (data) => {
     if (data.by === friendId && lastSentMessageId === data.messageId) {
@@ -189,49 +184,47 @@
     }
   });
 
-  function sendMessage() {
-    const input = document.getElementById('message-input');
-    const text = input.value.trim();
-    if (!text) return;
+function sendMessage() {
+  const input = document.getElementById('message-input');
+  const text = input.value.trim();
+  if (!text) return;
 
-    const msgId = generateId();
-    const msg = {
-      _id: msgId,
-      from: user._id,
-      to: friendId,
-      text,
-      timestamp: new Date().toISOString()
-    };
+  const msgId = generateId();
+  const msg = {
+    _id: msgId,
+    from: user._id,
+    to: friendId,
+    text,
+    timestamp: new Date().toISOString()
+  };
 
-    socket.emit('chat-message', msg);
-    lastSentMessageId = msgId;
+  addMessage(msg.text, 'me', msg._id);
+  socket.emit('chat-message', msg);
+  lastSentMessageId = msgId;
+  input.value = '';
+}
 
-    addMessage(msg.text, 'me', msg._id);
-    input.value = '';
+function addMessage(text, type, msgId = '', seen = false, timestamp = null) {
+  const row = document.createElement('div');
+  row.className = `message-row ${type}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'message';
+  bubble.textContent = text;
+
+  row.appendChild(bubble);
+
+  if (type === 'me') {
+    const seenSpan = document.createElement('div');
+    seenSpan.className = 'seen-label';
+    seenSpan.id = `seen-${msgId}`;
+    seenSpan.textContent = ''; // Don't show 'Seen' until received
+    row.appendChild(seenSpan);
   }
 
-  function addMessage(text, type, msgId = '', seen = false, timestamp = null) {
-    const row = document.createElement('div');
-    row.className = `message-row ${type}`;
-
-    const bubble = document.createElement('div');
-    bubble.className = 'message';
-    bubble.textContent = text;
-
-    row.appendChild(bubble);
-
-    if (type === 'me') {
-      const seenSpan = document.createElement('div');
-      seenSpan.className = 'seen-label';
-      seenSpan.id = `seen-${msgId}`;
-      seenSpan.textContent = seen ? `✓ Seen` : '';
-      row.appendChild(seenSpan);
-    }
-
-    chatContainer.appendChild(row);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-    return row;
-  }
+  chatContainer.appendChild(row);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
 
   function generateId() {
     return 'msg_' + Math.random().toString(36).substr(2, 9);
