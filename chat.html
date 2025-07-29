@@ -132,7 +132,8 @@
 <body>
 
 <header>
-  Chat with <span id="friend-name">...</span> <span id="friend-status" style="font-weight: normal; font-size: 14px;">(offline)</span>
+  Chat with <span id="friend-name">...</span>
+  <span id="friend-status" style="font-weight: normal; font-size: 14px;">(offline)</span>
 </header>
 
 <div id="chat-container"></div>
@@ -168,63 +169,64 @@
     statusEl.textContent = isFriendOnline ? '(online 🟢)' : '(offline ⚫)';
   });
 
-socket.on('chat-message', (msg) => {
-  if (msg.from === friendId && msg.to === user._id) {
-    addMessage(msg.text, 'you', msg._id, false, msg.timestamp);
-    socket.emit('seen-message', { messageId: msg._id, from: msg.from, to: msg.to });
-  }
-});
+  socket.on('chat-message', (msg) => {
+    // Only display messages received from friend
+    if (msg.from === friendId && msg.to === user._id) {
+      addMessage(msg.text, 'you', msg._id, false, msg.timestamp);
+      socket.emit('seen-message', { messageId: msg._id, from: msg.from, to: msg.to });
+    }
+  });
 
   socket.on('message-seen', (data) => {
-    if (data.by === friendId && lastSentMessageId === data.messageId) {
-      const seenEl = document.getElementById(`seen-${lastSentMessageId}`);
+    if (data.by === friendId) {
+      const seenEl = document.getElementById(`seen-${data.messageId}`);
       if (seenEl) {
         seenEl.textContent = `✓ Seen at ${new Date(data.seenAt).toLocaleTimeString()}`;
       }
     }
   });
 
-function sendMessage() {
-  const input = document.getElementById('message-input');
-  const text = input.value.trim();
-  if (!text) return;
+  function sendMessage() {
+    const input = document.getElementById('message-input');
+    const text = input.value.trim();
+    if (!text) return;
 
-  const msgId = generateId();
-  const msg = {
-    _id: msgId,
-    from: user._id,
-    to: friendId,
-    text,
-    timestamp: new Date().toISOString()
-  };
+    const msgId = generateId();
+    const msg = {
+      _id: msgId,
+      from: user._id,
+      to: friendId,
+      text,
+      timestamp: new Date().toISOString()
+    };
 
-  addMessage(msg.text, 'me', msg._id);
-  socket.emit('chat-message', msg);
-  lastSentMessageId = msgId;
-  input.value = '';
-}
-
-function addMessage(text, type, msgId = '', seen = false, timestamp = null) {
-  const row = document.createElement('div');
-  row.className = `message-row ${type}`;
-
-  const bubble = document.createElement('div');
-  bubble.className = 'message';
-  bubble.textContent = text;
-
-  row.appendChild(bubble);
-
-  if (type === 'me') {
-    const seenSpan = document.createElement('div');
-    seenSpan.className = 'seen-label';
-    seenSpan.id = `seen-${msgId}`;
-    seenSpan.textContent = ''; // Don't show 'Seen' until received
-    row.appendChild(seenSpan);
+    addMessage(msg.text, 'me', msg._id);
+    socket.emit('chat-message', msg);
+    lastSentMessageId = msgId;
+    input.value = '';
   }
 
-  chatContainer.appendChild(row);
-  chatContainer.scrollTop = chatContainer.scrollHeight;
-}
+  function addMessage(text, type, msgId = '', seen = false, timestamp = null) {
+    const row = document.createElement('div');
+    row.className = `message-row ${type}`;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'message';
+    bubble.textContent = text;
+
+    row.appendChild(bubble);
+
+    if (type === 'me') {
+      const seenSpan = document.createElement('div');
+      seenSpan.className = 'seen-label';
+      seenSpan.id = `seen-${msgId}`;
+      seenSpan.textContent = ''; // Only updated by socket.on('message-seen')
+      row.appendChild(seenSpan);
+    }
+
+    chatContainer.appendChild(row);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
 
   function generateId() {
     return 'msg_' + Math.random().toString(36).substr(2, 9);
