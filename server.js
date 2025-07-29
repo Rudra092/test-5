@@ -22,30 +22,35 @@ io.on('connection', (socket) => {
 
   socket.on('user-connected', (userId) => {
     onlineUsers[userId] = socket.id;
-    console.log(`✅ User connected: ${userId}`);
-    io.emit('online-users', Object.keys(onlineUsers)); // Broadcast updated list
+    io.emit('online-users', Object.keys(onlineUsers));
   });
 
   socket.on('disconnect', () => {
     const disconnectedUserId = Object.keys(onlineUsers).find(uid => onlineUsers[uid] === socket.id);
     if (disconnectedUserId) {
       delete onlineUsers[disconnectedUserId];
-      console.log(`❌ User disconnected: ${disconnectedUserId}`);
+      io.emit('online-users', Object.keys(onlineUsers));
     }
-    io.emit('online-users', Object.keys(onlineUsers)); // Broadcast updated list
   });
 
-socket.on('seen-message', ({ messageId, from, to }) => {
-  const seenAt = new Date();
-  io.to(onlineUsers[from]).emit('message-seen', {
-    messageId,
-    by: to,
-    seenAt
+  socket.on('chat-message', async (msg) => {
+    const saved = await Message.create(msg);
+    if (onlineUsers[msg.to]) {
+      io.to(onlineUsers[msg.to]).emit('chat-message', saved);
+    }
+    socket.emit('chat-message', saved); // echo back to sender
   });
-});
 
-  socket.on('chat-message', (msg) => {
-    io.emit('chat-message', msg);
+  socket.on('seen-message', async ({ messageId, from, to }) => {
+    const seenAt = new Date();
+    await Message.findByIdAndUpdate(messageId, { seen: true, seenAt });
+    if (onlineUsers[from]) {
+      io.to(onlineUsers[from]).emit('message-seen', {
+        messageId,
+        by: to,
+        seenAt
+      });
+    }
   });
 });
 
@@ -71,6 +76,16 @@ const FriendRequest = mongoose.model('FriendRequest', new mongoose.Schema({
   from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, default: 'pending' } // pending, accepted
+}));
+
+// Add this schema at the top (after FriendRequest schema)
+const Message = mongoose.model('Message', new mongoose.Schema({
+  from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  text: String,
+  timestamp: { type: Date, default: Date.now },
+  seen: { type: Boolean, default: false },
+  seenAt: Date
 }));
 
 // 📧 OTP Store
@@ -230,6 +245,18 @@ app.post('/friend-request/accept', async (req, res) => {
   await toUser.save();
 
   res.json({ success: true });
+});
+
+// 🗂️ Load chat history
+app.get('/messages/:userId/:friendId', async (req, res) => {
+  const { userId, friendId } = req.params;
+  const messages = await Message.find({
+    $or: [
+      { from: userId, to: friendId },
+      { from: friendId, to: userId }
+    ]
+  }).sort({ timestamp: 1 });
+  res.json(messages);
 });
 
 const PORT = process.env.PORT || 3000;
