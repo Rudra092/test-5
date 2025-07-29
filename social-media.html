@@ -133,7 +133,6 @@
   </header>
 
   <div class="container">
-
     <div class="section">
       <h2>Friend Requests</h2>
       <div id="friend-requests"></div>
@@ -155,27 +154,64 @@
     </div>
   </div>
 
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
     const user = JSON.parse(localStorage.getItem('user'));
-    if (!user) {
-      window.location.href = 'index.html';
-    }
-
+    if (!user) window.location.href = 'index.html';
     document.getElementById('user-name').textContent = user.fullname;
+
     document.getElementById('logout-btn').addEventListener('click', () => {
       localStorage.removeItem('user');
       window.location.href = 'index.html';
     });
 
-    async function fetchUsers() {
-      const res = await fetch('https://test-5-jdfo.onrender.com/me/' + user._id);
+    const socket = io('https://test-5-jdfo.onrender.com');
+    socket.emit('user-connected', user._id);
+
+    let onlineIds = [];
+
+    socket.on('online-users', (ids) => {
+      onlineIds = ids;
+      updateFriendStatuses();
+    });
+
+    function updateFriendStatuses() {
+      const cards = document.querySelectorAll('#friend-list .user-card');
+      cards.forEach(card => {
+        const uid = card.getAttribute('data-id');
+        const status = onlineIds.includes(uid) ? '🟢 Online' : '⚫ Offline';
+        const statusEl = card.querySelector('.status');
+        if (statusEl) statusEl.textContent = status;
+      });
+    }
+
+    async function fetchUserData() {
+      const res = await fetch(`https://test-5-jdfo.onrender.com/me/${user._id}`);
       const data = await res.json();
       renderFriends(data.user.friends);
     }
 
+    function renderFriends(friends) {
+      const div = document.getElementById('friend-list');
+      div.innerHTML = '';
+      friends.forEach(friend => {
+        const d = document.createElement('div');
+        d.className = 'user-card';
+        d.setAttribute('data-id', friend._id);
+        d.innerHTML = `
+          <div class="user-info">
+            <strong>${friend.fullname}</strong> (${friend.username})<br>
+            <small class="status">⚫ Offline</small>
+          </div>
+          <div><a href="chat.html?fid=${friend._id}">💬 Chat</a></div>
+        `;
+        div.appendChild(d);
+      });
+      updateFriendStatuses();
+    }
+
     async function loadAllUsers() {
       const searchTerm = document.getElementById('search-input')?.value?.toLowerCase() || '';
-
       const [usersRes, meRes, requestsRes] = await Promise.all([
         fetch('https://test-5-jdfo.onrender.com/users'),
         fetch('https://test-5-jdfo.onrender.com/me/' + user._id),
@@ -192,7 +228,6 @@
 
       users.forEach(u => {
         if (u._id === user._id) return;
-
         const nameMatch = u.fullname.toLowerCase().includes(searchTerm);
         const usernameMatch = u.username.toLowerCase().includes(searchTerm);
         if (!nameMatch && !usernameMatch) return;
@@ -264,58 +299,13 @@
         body: JSON.stringify({ requestId })
       });
       alert('Friend added');
-      fetchUsers();
-      loadRequests();
-      loadAllUsers();
+      await Promise.all([fetchUserData(), loadRequests(), loadAllUsers()]);
     }
 
-    function renderFriends(friends) {
-      const div = document.getElementById('friend-list');
-      div.innerHTML = '';
-      friends.forEach(friend => {
-        const d = document.createElement('div');
-        d.className = 'user-card';
-        d.setAttribute('data-id', friend._id);
-        d.innerHTML = `
-          <div class="user-info">
-            <strong>${friend.fullname}</strong> (${friend.username})<br>
-            <small class="status">⚫ Offline</small>
-          </div>
-          <div><a href="chat.html?fid=${friend._id}">💬 Chat</a></div>
-        `;
-        div.appendChild(d);
-      });
-
-      updateFriendStatuses();
-    }
-
-    fetchUsers();
+    // Initial load
+    fetchUserData();
     loadAllUsers();
     loadRequests();
-  </script>
-
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <script>
-    const socket = io('https://test-5-jdfo.onrender.com');
-    const userId = user._id;
-    socket.emit('user-connected', userId);
-
-    let onlineIds = [];
-
-    socket.on('online-users', (ids) => {
-      onlineIds = ids;
-      updateFriendStatuses();
-    });
-
-    function updateFriendStatuses() {
-      const friends = document.querySelectorAll('#friend-list .user-card');
-      friends.forEach(card => {
-        const userId = card.getAttribute('data-id');
-        const status = onlineIds.includes(userId) ? '🟢 Online' : '⚫ Offline';
-        const statusSpan = card.querySelector('.status');
-        if (statusSpan) statusSpan.textContent = status;
-      });
-    }
   </script>
 </body>
 </html>
