@@ -244,23 +244,51 @@ async function sendRequest(to) {
       loadAllUsers();
     }
 
-    function renderFriends(friends) {
-      const div = document.getElementById('friend-list');
-      div.innerHTML = '';
-      friends.forEach(friend => {
-        const d = document.createElement('div');
-        d.className = 'user-card';
-        d.innerHTML = `
-          <div class="user-info"><strong>${friend.fullname}</strong> (${friend.username})</div>
-          <div><a href="chat.html?fid=${friend._id}">💬 Chat</a></div>
-        `;
-        div.appendChild(d);
-      });
-    }
+function renderFriends(friends) {
+  const div = document.getElementById('friend-list');
+  div.innerHTML = '';
+  friends.forEach(friend => {
+    const d = document.createElement('div');
+    d.className = 'user-card';
+    d.setAttribute('data-id', friend._id);
+    d.innerHTML = `
+      <div class="user-info">
+        <strong>${friend.fullname}</strong> (${friend.username})<br>
+        <small class="status">⚫ Offline</small>
+      </div>
+      <div><a href="chat.html?fid=${friend._id}">💬 Chat</a></div>
+    `;
+    div.appendChild(d);
+  });
 
+  updateFriendStatuses(); // Immediately show status after render
+}
     fetchUsers();
     loadAllUsers();
     loadRequests();
   </script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const socket = io('https://test-5-jdfo.onrender.com'); // Update if needed
+  const userId = user._id;
+  socket.emit('user-connected', userId);
+
+  let onlineIds = [];
+
+  socket.on('online-users', (ids) => {
+    onlineIds = ids;
+    updateFriendStatuses(); // Re-render friends with online/offline indicators
+  });
+
+  function updateFriendStatuses() {
+    const friends = document.querySelectorAll('#friend-list .user-card');
+    friends.forEach(card => {
+      const userId = card.getAttribute('data-id');
+      const status = onlineIds.includes(userId) ? '🟢 Online' : '⚫ Offline';
+      const statusSpan = card.querySelector('.status');
+      if (statusSpan) statusSpan.textContent = status;
+    });
+  }
+</script>
 </body>
 </html>

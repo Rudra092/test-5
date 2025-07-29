@@ -15,25 +15,31 @@ const io = new Server(server, {
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-let onlineUsers = {};
+let onlineUsers = {}; // { userId: socket.id }
 
 io.on('connection', (socket) => {
   console.log('🔌 New client connected:', socket.id);
 
-  socket.on('user-connected', (user) => {
-    onlineUsers[socket.id] = user;
-    io.emit('online-users', Object.values(onlineUsers));
+  socket.on('user-connected', (userId) => {
+    onlineUsers[userId] = socket.id;
+    console.log(`✅ User connected: ${userId}`);
+    io.emit('online-users', Object.keys(onlineUsers)); // Broadcast updated list
+  });
+
+  socket.on('disconnect', () => {
+    const disconnectedUserId = Object.keys(onlineUsers).find(uid => onlineUsers[uid] === socket.id);
+    if (disconnectedUserId) {
+      delete onlineUsers[disconnectedUserId];
+      console.log(`❌ User disconnected: ${disconnectedUserId}`);
+    }
+    io.emit('online-users', Object.keys(onlineUsers)); // Broadcast updated list
   });
 
   socket.on('chat-message', (msg) => {
     io.emit('chat-message', msg);
   });
-
-  socket.on('disconnect', () => {
-    delete onlineUsers[socket.id];
-    io.emit('online-users', Object.values(onlineUsers));
-  });
 });
+
 
 // 🔗 Connect MongoDB
 mongoose.connect(process.env.MONGO_URI, {
