@@ -35,6 +35,15 @@ io.on('connection', (socket) => {
     io.emit('online-users', Object.keys(onlineUsers)); // Broadcast updated list
   });
 
+socket.on('seen-message', ({ messageId, from, to }) => {
+  const seenAt = new Date();
+  io.to(onlineUsers[from]).emit('message-seen', {
+    messageId,
+    by: to,
+    seenAt
+  });
+});
+
   socket.on('chat-message', (msg) => {
     io.emit('chat-message', msg);
   });
