@@ -100,10 +100,10 @@
   const user = JSON.parse(localStorage.getItem('user'));
   const friendId = new URLSearchParams(location.search).get('fid');
   const chatContainer = document.getElementById('chat-container');
+  const seenMessages = new Set();
 
   socket.emit('user-connected', user._id);
 
-  // Online status
   socket.on('online-users', (ids) => {
     const isOnline = ids.includes(friendId);
     document.getElementById('friend-status').textContent = isOnline ? '(online 🟢)' : '(offline ⚫)';
@@ -115,7 +115,6 @@
       document.getElementById('friend-name').textContent = data.user.fullname;
     });
 
-  // Load history
   async function loadHistory() {
     const res = await fetch(`https://test-5-jdfo.onrender.com/messages/${user._id}/${friendId}`);
     const messages = await res.json();
@@ -123,19 +122,17 @@
       const type = msg.from === user._id ? 'me' : 'you';
       addMessage(msg.text, type, msg._id, msg.seen, msg.timestamp);
       if (type === 'you' && !msg.seen) {
-        socket.emit('seen-message', { messageId: msg._id, from: msg.from, to: msg.to });
+        markAsSeenOnce(msg._id, msg.from, msg.to);
       }
     });
   }
-
-  loadHistory();
 
   socket.on('chat-message', (msg) => {
     if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
       const type = msg.from === user._id ? 'me' : 'you';
       addMessage(msg.text, type, msg._id, msg.seen, msg.timestamp);
-      if (type === 'you') {
-        socket.emit('seen-message', { messageId: msg._id, from: msg.from, to: msg.to });
+      if (type === 'you' && !msg.seen) {
+        markAsSeenOnce(msg._id, msg.from, msg.to);
       }
     }
   });
@@ -174,13 +171,21 @@
       const seenEl = document.createElement('div');
       seenEl.className = 'seen-label';
       seenEl.id = `seen-${msgId}`;
-      seenEl.textContent = seen ? `✓ Seen` : '';
+      seenEl.textContent = seen ? `✓ Seen at ${new Date(timestamp).toLocaleTimeString()}` : '';
       row.appendChild(seenEl);
     }
 
     chatContainer.appendChild(row);
     chatContainer.scrollTop = chatContainer.scrollHeight;
   }
+
+  function markAsSeenOnce(messageId, from, to) {
+    if (seenMessages.has(messageId)) return;
+    seenMessages.add(messageId);
+    socket.emit('seen-message', { messageId, from, to });
+  }
+
+  loadHistory();
 </script>
 
 </body>
