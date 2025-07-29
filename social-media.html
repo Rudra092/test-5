@@ -213,17 +213,19 @@
   async function loadAllUsers() {
     const searchTerm = document.getElementById('search-input')?.value?.toLowerCase() || '';
     const [usersRes, meRes, requestsRes, sentReqRes] = await Promise.all([
-      fetch('https://test-5-jdfo.onrender.com/users'),
-      fetch('https://test-5-jdfo.onrender.com/me/' + user._id),
-      fetch('https://test-5-jdfo.onrender.com/friend-requests/' + user._id),
-      fetch('https://test-5-jdfo.onrender.com/friend-requests/sent/' + user._id)
-    ]);
+  fetch('https://test-5-jdfo.onrender.com/users'),
+  fetch('https://test-5-jdfo.onrender.com/me/' + user._id),
+  fetch('https://test-5-jdfo.onrender.com/friend-requests/' + user._id),
+  fetch('https://test-5-jdfo.onrender.com/friend-requests/sent/' + user._id)
+]);
 
-    const users = await usersRes.json();
-    const meData = await meRes.json();
-    const incomingRequests = await requestsRes.json(); // requests received by current user
-    const sentRequests = await sentReqRes.json(); // list of user IDs to whom current user sent request
-    const myFriends = meData.user.friends.map(f => f._id);
+const users = await usersRes.json();
+const meData = await meRes.json();
+const incomingRequests = await requestsRes.json();
+const sentRequests = await sentReqRes.json();
+const sentToIds = sentRequests.map(req => req.to._id); // ✅ fix
+
+const myFriends = meData.user.friends.map(f => f._id);
 
     const list = document.getElementById('user-list');
     list.innerHTML = '';
