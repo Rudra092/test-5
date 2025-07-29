@@ -233,7 +233,10 @@
         if (!nameMatch && !usernameMatch) return;
 
         const isFriend = myFriends.includes(u._id);
-        const alreadyRequested = pendingRequests.some(r => r.from._id === user._id && r.to === u._id);
+        const alreadyRequested = pendingRequests.some(r => 
+  (r.from._id === user._id && r.to === u._id) || 
+  (r.from._id === u._id && r.to === user._id));
+
         const mutualFriends = u.friends?.filter(fid => myFriends.includes(fid)).length || 0;
 
         const div = document.createElement('div');
