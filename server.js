@@ -1,73 +1,126 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const nodemailer = require('nodemailer');
 const http = require('http');
 const { Server } = require('socket.io');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  cors: { origin: '*' }
+});
 
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use(cors({ origin: '*' }));
+app.use(express.json());
 
-// MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-const db = mongoose.connection;
-db.once('open', () => console.log('✅ MongoDB connected'));
-db.on('error', console.error);
+  useUnifiedTopology: true
+}).then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB error:', err));
 
-// Multer setup
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = './uploads';
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}_${file.originalname}`);
-  }
-});
-const upload = multer({ storage });
+const Message = mongoose.model('Message', new mongoose.Schema({
+  from: String,
+  to: String,
+  text: String,
+  createdAt: { type: Date, default: Date.now },
+  seen: { type: Boolean, default: false },
+  seenAt: Date
+}));
 
-// Schemas
+let onlineUsers = {};
+
+io.on('connection', (socket) => {
+  console.log('📡 Socket connected:', socket.id);
+
+  socket.on('user-connected', (userId) => {
+    onlineUsers[userId] = socket.id;
+    io.emit('online-users', Object.keys(onlineUsers));
+  });
+
+  socket.on('disconnect', () => {
+    const userId = Object.keys(onlineUsers).find(uid => onlineUsers[uid] === socket.id);
+    if (userId) delete onlineUsers[userId];
+    io.emit('online-users', Object.keys(onlineUsers));
+  });
+
+  socket.on('chat-message', async (msg) => {
+    const saved = await Message.create(msg);
+    if (onlineUsers[msg.to]) {
+      io.to(onlineUsers[msg.to]).emit('chat-message', saved);
+    }
+    socket.emit('chat-message', saved);
+  });
+
+  socket.on('seen-message', async ({ messageId, from, to }) => {
+    const seenAt = new Date();
+    const message = await Message.findByIdAndUpdate(messageId, {
+      seen: true,
+      seenAt
+    }, { new: true });
+
+    if (onlineUsers[from]) {
+      io.to(onlineUsers[from]).emit('message-seen', {
+        messageId,
+        by: to,
+        seenAt
+      });
+    }
+  });
+
+  socket.on('typing', ({ from, to }) => {
+    if (onlineUsers[to]) {
+      io.to(onlineUsers[to]).emit('typing', { from, to });
+    }
+  });
+
+  socket.on('stop-typing', ({ from, to }) => {
+    if (onlineUsers[to]) {
+      io.to(onlineUsers[to]).emit('stop-typing', { from, to });
+    }
+  });
+});
+
+app.get('/messages/:from/:to', async (req, res) => {
+  const { from, to } = req.params;
+  const messages = await Message.find({
+    $or: [
+      { from, to },
+      { from: to, to: from }
+    ]
+  }).sort('createdAt');
+  res.json(messages);
+});
+
+// 🔗 MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB error:', err));
+
+// 👤 User Schema
 const User = mongoose.model('User', new mongoose.Schema({
   username: String,
   password: String,
   email: String,
   fullname: String,
   phone: String,
-  avatar: String,
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }));
 
-const Message = mongoose.model('Message', new mongoose.Schema({
-  from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  text: String,
-  file: String,
-  createdAt: { type: Date, default: Date.now },
-  seen: { type: Boolean, default: false }
-}));
-
+// ➕ Friend Request Schema
 const FriendRequest = mongoose.model('FriendRequest', new mongoose.Schema({
   from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  status: { type: String, default: 'pending' }
+  status: { type: String, default: 'pending' } // pending, accepted
 }));
 
-// OTP email setup
+// 📧 OTP Store
 const otps = {};
+
+// 📬 Nodemailer
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -76,83 +129,44 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// SOCKET.IO
-let onlineUsers = {}; // userId => socketId
-
-io.on('connection', (socket) => {
-  console.log(`🔌 New socket: ${socket.id}`);
-
-  socket.on('user-connected', (userId) => {
-    onlineUsers[userId] = socket.id;
-    io.emit('online-users', Object.keys(onlineUsers));
-  });
-
-  socket.on('disconnect', () => {
-    const userId = Object.keys(onlineUsers).find(id => onlineUsers[id] === socket.id);
-    if (userId) {
-      delete onlineUsers[userId];
-      io.emit('online-users', Object.keys(onlineUsers));
-    }
-  });
-
-  socket.on('chat-message', async (data) => {
-    const message = new Message(data);
-    await message.save();
-
-    const receiverSocket = onlineUsers[data.to];
-    const senderSocket = onlineUsers[data.from];
-
-    if (receiverSocket) {
-      io.to(receiverSocket).emit('chat-message', message);
-    }
-    if (senderSocket) {
-      io.to(senderSocket).emit('chat-message', message); // confirmation
-    }
-  });
-
-  socket.on('typing', ({ from, to }) => {
-    const receiverSocket = onlineUsers[to];
-    if (receiverSocket) {
-      io.to(receiverSocket).emit('typing', { from });
-    }
-  });
-
-  socket.on('seen', async ({ from, to }) => {
-    await Message.updateMany({ from, to, seen: false }, { seen: true });
-    const senderSocket = onlineUsers[from];
-    if (senderSocket) {
-      io.to(senderSocket).emit('seen', { from: to });
-    }
-  });
-});
-
-// Routes
-app.post('/upload', upload.single('file'), (req, res) => {
-  res.json({ success: true, url: `/uploads/${req.file.filename}` });
-});
-
+// 📝 Register
 app.post('/register', async (req, res) => {
   const { username, email, password, fullname, phone } = req.body;
-  if (!username || !email || !password) return res.status(400).json({ success: false, message: 'Missing fields' });
+  if (!username || !email || !password) {
+    return res.status(400).json({ success: false, message: 'All fields are required.' });
+  }
 
   const existing = await User.findOne({ $or: [{ username }, { email }] });
-  if (existing) return res.status(400).json({ success: false, message: 'User already exists' });
+  if (existing) {
+    return res.status(400).json({ success: false, message: 'User already exists' });
+  }
 
   const user = new User({ username, email, password, fullname, phone });
   await user.save();
-  res.json({ success: true, user });
+  res.json({ success: true, message: 'Registered successfully!' });
 });
 
+// 🔐 Login
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  const user = await User.findOne({ username, password });
-  if (user) {
-    res.json({ success: true, user });
-  } else {
-    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  try {
+    const found = await User.findOne({ username, password });
+    if (found) {
+      res.json({
+        success: true,
+        message: 'Login successful!',
+        user: found
+      });
+    } else {
+      res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
+// 📧 Request OTP
 app.post('/request-otp', async (req, res) => {
   const { email } = req.body;
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -160,74 +174,88 @@ app.post('/request-otp', async (req, res) => {
 
   try {
     await transporter.sendMail({
-      from: `"Chat App" <${process.env.EMAIL_USER}>`,
+      from: `"My App" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: 'Your OTP Code',
-      html: `<p>Your OTP: <strong>${otp}</strong></p>`
+      subject: 'Password Reset OTP',
+      html: `<p>Your OTP is: <strong>${otp}</strong></p>`
     });
-    res.json({ success: true });
-  } catch {
-    res.status(500).json({ success: false, message: 'OTP failed to send' });
+
+    res.json({ success: true, message: 'OTP sent to email' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to send OTP' });
   }
 });
 
+// ✅ Verify OTP
 app.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;
   if (otps[email] === otp) {
     res.json({ success: true });
   } else {
-    res.json({ success: false, message: 'Incorrect OTP' });
+    res.json({ success: false, message: 'Invalid OTP' });
   }
 });
 
+// 🔁 Reset Password
 app.post('/reset-password', async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOneAndUpdate({ email }, { password });
-  if (!user) return res.status(404).json({ success: false });
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
   delete otps[email];
-  res.json({ success: true });
+  res.json({ success: true, message: 'Password reset successfully' });
 });
 
+// 👤 Get current user + friends
 app.get('/me/:id', async (req, res) => {
-  const user = await User.findById(req.params.id).populate('friends', 'fullname username avatar');
+  const user = await User.findById(req.params.id).populate('friends', 'fullname username');
   if (!user) return res.status(404).json({ success: false });
   res.json({ success: true, user });
 });
 
+// 🛠️ Update Profile
 app.put('/update-profile/:id', async (req, res) => {
-  const { fullname, email, phone, avatar } = req.body;
-  const user = await User.findByIdAndUpdate(req.params.id, { fullname, email, phone, avatar }, { new: true });
-  res.json({ success: true, user });
+  const { fullname, email, phone } = req.body;
+  const user = await User.findByIdAndUpdate(req.params.id, { fullname, email, phone }, { new: true });
+  if (!user) return res.status(404).json({ success: false });
+  res.json({ success: true, message: 'Profile updated!', user });
 });
 
+// 👥 All users with friends field
 app.get('/users', async (req, res) => {
-  const users = await User.find({}, 'username fullname avatar friends');
+  const users = await User.find({}, 'username fullname friends');
   res.json(users);
 });
 
+// ➕ Send Friend Request (prevent duplicates)
 app.post('/friend-request', async (req, res) => {
   const { from, to } = req.body;
-  const existing = await FriendRequest.findOne({
-    $or: [{ from, to }, { from: to, to: from }],
+  const exists = await FriendRequest.findOne({
+    $or: [
+      { from, to },
+      { from: to, to: from }
+    ],
     status: 'pending'
   });
-  if (existing) return res.status(400).json({ success: false, message: 'Request already sent' });
+  if (exists) return res.status(400).json({ success: false, message: 'Already requested' });
 
   await new FriendRequest({ from, to }).save();
   res.json({ success: true });
 });
 
+// 📩 Incoming friend requests
 app.get('/friend-requests/:id', async (req, res) => {
-  const requests = await FriendRequest.find({ to: req.params.id, status: 'pending' }).populate('from', 'fullname username avatar');
+  const requests = await FriendRequest.find({ to: req.params.id, status: 'pending' }).populate('from', 'fullname username');
   res.json(requests);
 });
 
+// 📤 Outgoing friend requests (to show "Request Sent")
 app.get('/friend-requests/sent/:id', async (req, res) => {
-  const requests = await FriendRequest.find({ from: req.params.id, status: 'pending' }).populate('to', 'fullname username avatar');
+  const requests = await FriendRequest.find({ from: req.params.id, status: 'pending' }).populate('to', 'fullname username');
   res.json(requests);
 });
 
+// ✅ Accept Friend Request
 app.post('/friend-request/accept', async (req, res) => {
   const { requestId } = req.body;
   const request = await FriendRequest.findById(requestId);
@@ -248,20 +276,5 @@ app.post('/friend-request/accept', async (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/messages/:from/:to', async (req, res) => {
-  const { from, to } = req.params;
-  const messages = await Message.find({
-    $or: [
-      { from, to },
-      { from: to, to: from }
-    ]
-  }).sort('createdAt');
-
-  res.json(messages);
-});
-
-// Start server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
