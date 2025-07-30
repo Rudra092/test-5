@@ -11,16 +11,23 @@ require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: '*' }
-});
+const io = new Server(server, { cors: { origin: '*' } });
 
-app.use(cors({ origin: '*' }));
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Multer setup for file uploads
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+const db = mongoose.connection;
+db.once('open', () => console.log('✅ MongoDB connected'));
+db.on('error', console.error);
+
+// Multer setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = './uploads';
@@ -32,13 +39,6 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage });
-
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('✅ MongoDB connected'))
-  .catch(err => console.error('❌ MongoDB error:', err));
 
 // Schemas
 const User = mongoose.model('User', new mongoose.Schema({
@@ -66,8 +66,8 @@ const FriendRequest = mongoose.model('FriendRequest', new mongoose.Schema({
   status: { type: String, default: 'pending' }
 }));
 
-const otps = {}; // OTP store
-
+// OTP email setup
+const otps = {};
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -76,39 +76,37 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// 🔌 Socket.IO logic
-let onlineUsers = {}; // { userId: socketId }
+// SOCKET.IO
+let onlineUsers = {}; // userId => socketId
 
 io.on('connection', (socket) => {
-  console.log('🔌 Socket connected:', socket.id);
+  console.log(`🔌 New socket: ${socket.id}`);
 
   socket.on('user-connected', (userId) => {
     onlineUsers[userId] = socket.id;
-    console.log(`✅ User connected: ${userId}`);
     io.emit('online-users', Object.keys(onlineUsers));
   });
 
   socket.on('disconnect', () => {
-    const disconnectedUser = Object.keys(onlineUsers).find(uid => onlineUsers[uid] === socket.id);
-    if (disconnectedUser) {
-      delete onlineUsers[disconnectedUser];
+    const userId = Object.keys(onlineUsers).find(id => onlineUsers[id] === socket.id);
+    if (userId) {
+      delete onlineUsers[userId];
       io.emit('online-users', Object.keys(onlineUsers));
-      console.log(`❌ User disconnected: ${disconnectedUser}`);
     }
   });
 
-  socket.on('chat-message', async (msg) => {
-    const message = new Message(msg);
+  socket.on('chat-message', async (data) => {
+    const message = new Message(data);
     await message.save();
 
-    const receiverSocket = onlineUsers[msg.to];
-    const senderSocket = onlineUsers[msg.from];
+    const receiverSocket = onlineUsers[data.to];
+    const senderSocket = onlineUsers[data.from];
 
     if (receiverSocket) {
       io.to(receiverSocket).emit('chat-message', message);
     }
     if (senderSocket) {
-      io.to(senderSocket).emit('chat-message', message);
+      io.to(senderSocket).emit('chat-message', message); // confirmation
     }
   });
 
@@ -121,7 +119,6 @@ io.on('connection', (socket) => {
 
   socket.on('seen', async ({ from, to }) => {
     await Message.updateMany({ from, to, seen: false }, { seen: true });
-
     const senderSocket = onlineUsers[from];
     if (senderSocket) {
       io.to(senderSocket).emit('seen', { from: to });
@@ -136,23 +133,21 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
 app.post('/register', async (req, res) => {
   const { username, email, password, fullname, phone } = req.body;
-  if (!username || !email || !password) {
-    return res.status(400).json({ success: false, message: 'All fields required' });
-  }
+  if (!username || !email || !password) return res.status(400).json({ success: false, message: 'Missing fields' });
 
-  const exists = await User.findOne({ $or: [{ username }, { email }] });
-  if (exists) return res.status(400).json({ success: false, message: 'User already exists' });
+  const existing = await User.findOne({ $or: [{ username }, { email }] });
+  if (existing) return res.status(400).json({ success: false, message: 'User already exists' });
 
   const user = new User({ username, email, password, fullname, phone });
   await user.save();
-  res.json({ success: true, message: 'Registered successfully!' });
+  res.json({ success: true, user });
 });
 
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  const found = await User.findOne({ username, password });
-  if (found) {
-    res.json({ success: true, message: 'Login successful!', user: found });
+  const user = await User.findOne({ username, password });
+  if (user) {
+    res.json({ success: true, user });
   } else {
     res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
@@ -165,14 +160,14 @@ app.post('/request-otp', async (req, res) => {
 
   try {
     await transporter.sendMail({
-      from: `"My App" <${process.env.EMAIL_USER}>`,
+      from: `"Chat App" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: 'Password Reset OTP',
-      html: `<p>Your OTP is: <strong>${otp}</strong></p>`
+      subject: 'Your OTP Code',
+      html: `<p>Your OTP: <strong>${otp}</strong></p>`
     });
-    res.json({ success: true, message: 'OTP sent' });
+    res.json({ success: true });
   } catch {
-    res.status(500).json({ success: false, message: 'Failed to send OTP' });
+    res.status(500).json({ success: false, message: 'OTP failed to send' });
   }
 });
 
@@ -181,17 +176,17 @@ app.post('/verify-otp', (req, res) => {
   if (otps[email] === otp) {
     res.json({ success: true });
   } else {
-    res.json({ success: false, message: 'Invalid OTP' });
+    res.json({ success: false, message: 'Incorrect OTP' });
   }
 });
 
 app.post('/reset-password', async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOneAndUpdate({ email }, { password });
-  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  if (!user) return res.status(404).json({ success: false });
 
   delete otps[email];
-  res.json({ success: true, message: 'Password reset successfully' });
+  res.json({ success: true });
 });
 
 app.get('/me/:id', async (req, res) => {
@@ -203,22 +198,21 @@ app.get('/me/:id', async (req, res) => {
 app.put('/update-profile/:id', async (req, res) => {
   const { fullname, email, phone, avatar } = req.body;
   const user = await User.findByIdAndUpdate(req.params.id, { fullname, email, phone, avatar }, { new: true });
-  if (!user) return res.status(404).json({ success: false });
-  res.json({ success: true, message: 'Profile updated', user });
+  res.json({ success: true, user });
 });
 
 app.get('/users', async (req, res) => {
-  const users = await User.find({}, 'username fullname friends avatar');
+  const users = await User.find({}, 'username fullname avatar friends');
   res.json(users);
 });
 
 app.post('/friend-request', async (req, res) => {
   const { from, to } = req.body;
-  const exists = await FriendRequest.findOne({
+  const existing = await FriendRequest.findOne({
     $or: [{ from, to }, { from: to, to: from }],
     status: 'pending'
   });
-  if (exists) return res.status(400).json({ success: false, message: 'Request already exists' });
+  if (existing) return res.status(400).json({ success: false, message: 'Request already sent' });
 
   await new FriendRequest({ from, to }).save();
   res.json({ success: true });
@@ -266,6 +260,8 @@ app.get('/messages/:from/:to', async (req, res) => {
   res.json(messages);
 });
 
-// ✅ Start Server
+// Start server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
