@@ -9,18 +9,25 @@
     :root {
       --primary: #1877f2;
       --bg: #f0f2f5;
+      --text: #050505;
       --bubble-me: #d1e7ff;
       --bubble-you: #e4e6eb;
     }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       padding: 0;
-      font-family: 'Segoe UI', sans-serif;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       background: var(--bg);
       height: 100vh;
       display: flex;
       flex-direction: column;
     }
+
     header {
       background-color: var(--primary);
       color: white;
@@ -28,53 +35,59 @@
       font-size: 18px;
       font-weight: bold;
       text-align: center;
-      position: relative;
     }
+
     #chat-container {
       flex: 1;
+      display: flex;
+      flex-direction: column;
       padding: 10px;
       overflow-y: auto;
     }
+
     .message-row {
       display: flex;
-      flex-direction: column;
       margin: 8px 0;
+      align-items: flex-end;
     }
-    .me { align-items: flex-end; }
-    .you { align-items: flex-start; }
+
+    .message.me {
+      background-color: var(--bubble-me);
+      margin-left: auto;
+    }
+
+    .message.you {
+      background-color: var(--bubble-you);
+      margin-right: auto;
+    }
+
     .message {
+      max-width: 70%;
       padding: 10px 14px;
       border-radius: 18px;
-      max-width: 70%;
       font-size: 15px;
-      position: relative;
+      line-height: 1.4;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
       word-wrap: break-word;
     }
-    .me .message { background-color: var(--bubble-me); }
-    .you .message { background-color: var(--bubble-you); }
-    .seen-label {
-      font-size: 11px;
-      color: gray;
-      margin-top: 2px;
-    }
-    .day-separator {
-      text-align: center;
-      font-size: 12px;
-      color: gray;
-      margin: 10px 0;
-    }
+
     #input-area {
       display: flex;
       padding: 10px;
       background: white;
       border-top: 1px solid #ccc;
+      align-items: center;
     }
+
     #message-input {
       flex: 1;
       padding: 12px;
       border: 1px solid #ccc;
       border-radius: 20px;
+      font-size: 15px;
+      outline: none;
     }
+
     #send-button {
       background: var(--primary);
       color: white;
@@ -85,19 +98,40 @@
       font-weight: bold;
       cursor: pointer;
     }
-    #typing-indicator {
-      font-size: 13px;
-      font-weight: normal;
-      margin-top: 4px;
-      color: white;
-      animation: pulseTyping 1.5s infinite;
-      display: none;
+
+    #send-button:hover {
+      background: #145dbf;
     }
 
-    @keyframes pulseTyping {
-      0% { opacity: 1; }
-      50% { opacity: 0.4; }
-      100% { opacity: 1; }
+    #typing-indicator {
+      font-style: italic;
+      font-size: 14px;
+      margin: 5px 10px;
+      color: #666;
+      display: none;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { opacity: 0.3; }
+    }
+
+    @media (max-width: 600px) {
+      .message {
+        max-width: 85%;
+        font-size: 14px;
+      }
+
+      #send-button {
+        padding: 8px 14px;
+        font-size: 14px;
+      }
+
+      #message-input {
+        font-size: 14px;
+      }
     }
   </style>
 </head>
@@ -106,175 +140,98 @@
 <header>
   Chat with <span id="friend-name">...</span>
   <span id="friend-status" style="font-weight: normal; font-size: 14px;">(offline)</span>
-  <div id="typing-indicator">Typing...</div>
 </header>
 
 <div id="chat-container"></div>
+<div id="typing-indicator">Typing...</div>
 
 <div id="input-area">
-  <input type="text" id="message-input" placeholder="Type a message..." oninput="handleTyping()" />
+  <input type="text" id="message-input" placeholder="Type a message..." />
   <button id="send-button" onclick="sendMessage()">Send</button>
 </div>
 
 <script>
   const socket = io('https://test-5-jdfo.onrender.com');
   const user = JSON.parse(localStorage.getItem('user'));
-  const friendId = new URLSearchParams(location.search).get('fid');
+  const urlParams = new URLSearchParams(window.location.search);
+  const friendId = urlParams.get('fid');
   const chatContainer = document.getElementById('chat-container');
+  const messageInput = document.getElementById('message-input');
   const typingIndicator = document.getElementById('typing-indicator');
-  const seenMessages = new Set();
-  let lastMessageDay = '';
+  let onlineIds = [];
 
-  socket.emit('user-connected', user._id);
-
-  socket.on('online-users', (ids) => {
-    const isOnline = ids.includes(friendId);
-    document.getElementById('friend-status').textContent = isOnline ? '(online 🟢)' : '(offline ⚫)';
-  });
-
+  // Fetch friend name
   fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
     .then(res => res.json())
     .then(data => {
       document.getElementById('friend-name').textContent = data.user.fullname;
     });
 
-  async function loadHistory() {
-    const res = await fetch(`https://test-5-jdfo.onrender.com/messages/${user._id}/${friendId}`);
-    const messages = await res.json();
+  // Register user connection
+  socket.emit('user-connected', user._id);
 
-    messages.forEach(msg => {
-      const type = msg.from === user._id ? 'me' : 'you';
-      const msgDate = formatDay(new Date(msg.timestamp || msg.createdAt));
-      if (msgDate !== lastMessageDay) {
-        addDateSeparator(msgDate);
-        lastMessageDay = msgDate;
-      }
-      const msgEl = addMessage(msg.text, type, msg._id, msg.seen, msg.seenAt);
-      if (type === 'you' && !msg.seen) {
-        observeVisibility(msgEl, msg._id, msg.from, msg.to);
-      }
-    });
-  }
+  // Online status
+  socket.on('online-users', (ids) => {
+    onlineIds = ids;
+    const isFriendOnline = onlineIds.includes(friendId);
+    const statusEl = document.getElementById('friend-status');
+    if (statusEl) {
+      statusEl.textContent = isFriendOnline ? '(online 🟢)' : '(offline ⚫)';
+    }
+  });
 
+  // Chat messages
   socket.on('chat-message', (msg) => {
     if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
       const type = msg.from === user._id ? 'me' : 'you';
-      const msgDate = formatDay(new Date(msg.timestamp || msg.createdAt));
-      if (msgDate !== lastMessageDay) {
-        addDateSeparator(msgDate);
-        lastMessageDay = msgDate;
-      }
-      const msgEl = addMessage(msg.text, type, msg._id, msg.seen, msg.seenAt);
-      if (type === 'you' && !msg.seen) {
-        observeVisibility(msgEl, msg._id, msg.from, msg.to);
-      }
+      addMessage(msg.text, type);
     }
   });
 
-  socket.on('message-seen', ({ messageId, seenAt }) => {
-    const seenLabel = document.getElementById(`seen-${messageId}`);
-    if (seenLabel) seenLabel.textContent = `✓ Seen at ${new Date(seenAt).toLocaleTimeString()}`;
-  });
-
-  function sendMessage() {
-    const input = document.getElementById('message-input');
-    const text = input.value.trim();
-    if (!text) return;
-
-    const msg = {
-      from: user._id,
-      to: friendId,
-      text,
-      timestamp: new Date().toISOString()
-    };
-
-    socket.emit('chat-message', msg);
-    input.value = '';
-    socket.emit('stop-typing', { from: user._id, to: friendId });
-  }
-
-  function addMessage(text, type, msgId = '', seen = false, seenAt = null) {
-    const row = document.createElement('div');
-    row.className = `message-row ${type}`;
-    row.id = `msg-${msgId}`;
-
-    const bubble = document.createElement('div');
-    bubble.className = 'message';
-    bubble.textContent = text;
-    row.appendChild(bubble);
-
-    if (type === 'me') {
-      const seenEl = document.createElement('div');
-      seenEl.className = 'seen-label';
-      seenEl.id = `seen-${msgId}`;
-      seenEl.textContent = seen && seenAt ? `✓ Seen at ${new Date(seenAt).toLocaleTimeString()}` : '';
-      row.appendChild(seenEl);
-    }
-
-    chatContainer.appendChild(row);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-    return row;
-  }
-
-  function addDateSeparator(dateText) {
-    const sep = document.createElement('div');
-    sep.className = 'day-separator';
-    sep.textContent = dateText;
-    chatContainer.appendChild(sep);
-  }
-
-  function formatDay(date) {
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-
-    const d = date.toDateString();
-    if (d === today.toDateString()) return 'Today';
-    if (d === yesterday.toDateString()) return 'Yesterday';
-    return date.toLocaleDateString();
-  }
-
-  function observeVisibility(el, messageId, from, to) {
-    if (seenMessages.has(messageId)) return;
-
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          seenMessages.add(messageId);
-          socket.emit('seen-message', { messageId, from, to });
-          observer.unobserve(el);
-        }
-      });
-    }, { threshold: 0.5 });
-
-    observer.observe(el);
-  }
-
-  // Typing indicator logic
+  // Typing indicator
   let typingTimeout;
-
-  function handleTyping() {
+  messageInput.addEventListener('input', () => {
     socket.emit('typing', { from: user._id, to: friendId });
-
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
       socket.emit('stop-typing', { from: user._id, to: friendId });
-    }, 2000);
-  }
+    }, 1000);
+  });
 
-  socket.on('typing', ({ from, to }) => {
-    if (from === friendId && to === user._id) {
+  socket.on('typing', ({ from }) => {
+    if (from === friendId) {
       typingIndicator.style.display = 'block';
     }
   });
 
-  socket.on('stop-typing', ({ from, to }) => {
-    if (from === friendId && to === user._id) {
+  socket.on('stop-typing', ({ from }) => {
+    if (from === friendId) {
       typingIndicator.style.display = 'none';
     }
   });
 
-  loadHistory();
+  // Send message
+  function sendMessage() {
+    const text = messageInput.value.trim();
+    if (!text) return;
+    socket.emit('chat-message', { from: user._id, to: friendId, text });
+    messageInput.value = '';
+    socket.emit('stop-typing', { from: user._id, to: friendId }); // stop typing immediately after send
+  }
+
+  // Display message
+  function addMessage(text, type) {
+    const row = document.createElement('div');
+    row.className = 'message-row';
+
+    const bubble = document.createElement('div');
+    bubble.className = `message ${type}`;
+    bubble.textContent = text;
+
+    row.appendChild(bubble);
+    chatContainer.appendChild(row);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
 </script>
 
 </body>
