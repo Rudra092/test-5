@@ -37,14 +37,16 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 💬 New message handler
   socket.on('chat-message', async (msg) => {
     const saved = await Message.create(msg);
     if (onlineUsers[msg.to]) {
       io.to(onlineUsers[msg.to]).emit('chat-message', saved);
     }
-    socket.emit('chat-message', saved);
+    socket.emit('chat-message', saved); // echo back to sender
   });
 
+  // ✅ Seen single message
   socket.on('seen-message', async ({ messageId, from, to }) => {
     const seenAt = new Date();
     await Message.findByIdAndUpdate(messageId, { seen: true, seenAt });
@@ -53,6 +55,36 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ✅ Seen all messages in chat
+  socket.on('mark-chat-seen', async ({ from, to }) => {
+    const now = new Date();
+
+    // Find unseen messages from friend
+    const unseenMessages = await Message.find({
+      from,
+      to,
+      seen: false
+    });
+
+    // Update them as seen
+    await Message.updateMany(
+      { from, to, seen: false },
+      { seen: true, seenAt: now }
+    );
+
+    // Notify sender for each seen message
+    if (userSocketMap[from]) {
+      unseenMessages.forEach(msg => {
+        io.to(userSocketMap[from]).emit('message-seen', {
+          messageId: msg._id,
+          by: to,
+          seenAt: now
+        });
+      });
+    }
+  });
+
+  // ✍️ Typing
   socket.on('typing', ({ from, to }) => {
     if (userSocketMap[to]) {
       io.to(userSocketMap[to]).emit('typing', { from, to });
