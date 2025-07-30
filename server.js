@@ -4,6 +4,9 @@ const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const http = require('http');
 const { Server } = require('socket.io');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -13,7 +16,22 @@ const io = new Server(server, {
 });
 
 app.use(cors({ origin: '*' }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// 📁 File upload setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = './uploads';
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}_${file.originalname}`);
+  }
+});
+const upload = multer({ storage });
 
 let onlineUsers = {}; // { userId: socket.id }
 
@@ -23,7 +41,7 @@ io.on('connection', (socket) => {
   socket.on('user-connected', (userId) => {
     onlineUsers[userId] = socket.id;
     console.log(`✅ User connected: ${userId}`);
-    io.emit('online-users', Object.keys(onlineUsers)); // Broadcast updated list
+    io.emit('online-users', Object.keys(onlineUsers));
   });
 
   socket.on('disconnect', () => {
@@ -31,12 +49,34 @@ io.on('connection', (socket) => {
     if (disconnectedUserId) {
       delete onlineUsers[disconnectedUserId];
       console.log(`❌ User disconnected: ${disconnectedUserId}`);
+      io.emit('online-users', Object.keys(onlineUsers));
     }
-    io.emit('online-users', Object.keys(onlineUsers)); // Broadcast updated list
   });
 
-  socket.on('chat-message', (msg) => {
-    io.emit('chat-message', msg);
+  socket.on('chat-message', async (msg) => {
+    const message = new Message(msg);
+    await message.save();
+
+    const receiverSocketId = onlineUsers[msg.to];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('chat-message', message);
+    }
+    io.to(onlineUsers[msg.from]).emit('chat-message', message);
+  });
+
+  socket.on('typing', ({ from, to }) => {
+    const receiverSocketId = onlineUsers[to];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('typing', { from });
+    }
+  });
+
+  socket.on('seen', async ({ from, to }) => {
+    await Message.updateMany({ from, to, seen: false }, { seen: true });
+    const senderSocket = onlineUsers[from];
+    if (senderSocket) {
+      io.to(senderSocket).emit('seen', { from: to });
+    }
   });
 });
 
@@ -54,14 +94,25 @@ const User = mongoose.model('User', new mongoose.Schema({
   email: String,
   fullname: String,
   phone: String,
+  avatar: String,
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+}));
+
+// 💬 Message Schema
+const Message = mongoose.model('Message', new mongoose.Schema({
+  from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  text: String,
+  file: String,
+  createdAt: { type: Date, default: Date.now },
+  seen: { type: Boolean, default: false }
 }));
 
 // ➕ Friend Request Schema
 const FriendRequest = mongoose.model('FriendRequest', new mongoose.Schema({
   from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  status: { type: String, default: 'pending' } // pending, accepted
+  status: { type: String, default: 'pending' }
 }));
 
 // 📧 OTP Store
@@ -74,6 +125,11 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   }
+});
+
+// 📥 File Upload Endpoint
+app.post('/upload', upload.single('file'), (req, res) => {
+  res.json({ success: true, url: `/uploads/${req.file.filename}` });
 });
 
 // 📝 Register
@@ -96,20 +152,11 @@ app.post('/register', async (req, res) => {
 // 🔐 Login
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  try {
-    const found = await User.findOne({ username, password });
-    if (found) {
-      res.json({
-        success: true,
-        message: 'Login successful!',
-        user: found
-      });
-    } else {
-      res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+  const found = await User.findOne({ username, password });
+  if (found) {
+    res.json({ success: true, message: 'Login successful!', user: found });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
 });
 
@@ -126,9 +173,8 @@ app.post('/request-otp', async (req, res) => {
       subject: 'Password Reset OTP',
       html: `<p>Your OTP is: <strong>${otp}</strong></p>`
     });
-
     res.json({ success: true, message: 'OTP sent to email' });
-  } catch (err) {
+  } catch {
     res.status(500).json({ success: false, message: 'Failed to send OTP' });
   }
 });
@@ -155,26 +201,26 @@ app.post('/reset-password', async (req, res) => {
 
 // 👤 Get current user + friends
 app.get('/me/:id', async (req, res) => {
-  const user = await User.findById(req.params.id).populate('friends', 'fullname username');
+  const user = await User.findById(req.params.id).populate('friends', 'fullname username avatar');
   if (!user) return res.status(404).json({ success: false });
   res.json({ success: true, user });
 });
 
 // 🛠️ Update Profile
 app.put('/update-profile/:id', async (req, res) => {
-  const { fullname, email, phone } = req.body;
-  const user = await User.findByIdAndUpdate(req.params.id, { fullname, email, phone }, { new: true });
+  const { fullname, email, phone, avatar } = req.body;
+  const user = await User.findByIdAndUpdate(req.params.id, { fullname, email, phone, avatar }, { new: true });
   if (!user) return res.status(404).json({ success: false });
   res.json({ success: true, message: 'Profile updated!', user });
 });
 
-// 👥 All users with friends field
+// 👥 All users with friends
 app.get('/users', async (req, res) => {
-  const users = await User.find({}, 'username fullname friends');
+  const users = await User.find({}, 'username fullname friends avatar');
   res.json(users);
 });
 
-// ➕ Send Friend Request (prevent duplicates)
+// ➕ Send Friend Request
 app.post('/friend-request', async (req, res) => {
   const { from, to } = req.body;
   const exists = await FriendRequest.findOne({
@@ -190,15 +236,15 @@ app.post('/friend-request', async (req, res) => {
   res.json({ success: true });
 });
 
-// 📩 Incoming friend requests
+// 📩 Incoming Requests
 app.get('/friend-requests/:id', async (req, res) => {
-  const requests = await FriendRequest.find({ to: req.params.id, status: 'pending' }).populate('from', 'fullname username');
+  const requests = await FriendRequest.find({ to: req.params.id, status: 'pending' }).populate('from', 'fullname username avatar');
   res.json(requests);
 });
 
-// 📤 Outgoing friend requests (to show "Request Sent")
+// 📤 Outgoing Requests
 app.get('/friend-requests/sent/:id', async (req, res) => {
-  const requests = await FriendRequest.find({ from: req.params.id, status: 'pending' }).populate('to', 'fullname username');
+  const requests = await FriendRequest.find({ from: req.params.id, status: 'pending' }).populate('to', 'fullname username avatar');
   res.json(requests);
 });
 
@@ -221,6 +267,19 @@ app.post('/friend-request/accept', async (req, res) => {
   await toUser.save();
 
   res.json({ success: true });
+});
+
+// 📜 Get Chat History
+app.get('/messages/:from/:to', async (req, res) => {
+  const { from, to } = req.params;
+  const messages = await Message.find({
+    $or: [
+      { from, to },
+      { from: to, to: from }
+    ]
+  }).sort('createdAt');
+
+  res.json(messages);
 });
 
 const PORT = process.env.PORT || 3000;
