@@ -7,18 +7,16 @@ require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: '*' }
-});
+const io = new Server(server, { cors: { origin: '*' } });
 
-app.use(cors({ origin: '*' }));
+app.use(cors());
 app.use(express.json());
 
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true
+  useUnifiedTopology: true,
 }).then(() => console.log('✅ MongoDB connected'))
-  .catch(err => console.error('❌ MongoDB error:', err));
+  .catch((err) => console.error('❌ MongoDB error:', err));
 
 const Message = mongoose.model('Message', new mongoose.Schema({
   from: String,
@@ -32,7 +30,7 @@ const Message = mongoose.model('Message', new mongoose.Schema({
 let onlineUsers = {};
 
 io.on('connection', (socket) => {
-  console.log('📡 Socket connected:', socket.id);
+  console.log(`📡 Socket connected: ${socket.id}`);
 
   socket.on('user-connected', (userId) => {
     onlineUsers[userId] = socket.id;
@@ -40,45 +38,43 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    const userId = Object.keys(onlineUsers).find(uid => onlineUsers[uid] === socket.id);
-    if (userId) delete onlineUsers[userId];
-    io.emit('online-users', Object.keys(onlineUsers));
+    const disconnectedUser = Object.keys(onlineUsers).find(uid => onlineUsers[uid] === socket.id);
+    if (disconnectedUser) {
+      delete onlineUsers[disconnectedUser];
+      io.emit('online-users', Object.keys(onlineUsers));
+      console.log(`❌ User disconnected: ${disconnectedUser}`);
+    }
   });
 
   socket.on('chat-message', async (msg) => {
-    const saved = await Message.create(msg);
-    if (onlineUsers[msg.to]) {
-      io.to(onlineUsers[msg.to]).emit('chat-message', saved);
-    }
-    socket.emit('chat-message', saved);
+    const message = new Message(msg);
+    await message.save();
+    const receiver = onlineUsers[msg.to];
+    if (receiver) io.to(receiver).emit('chat-message', message);
+    const sender = onlineUsers[msg.from];
+    if (sender) io.to(sender).emit('chat-message', message);
   });
 
   socket.on('seen-message', async ({ messageId, from, to }) => {
     const seenAt = new Date();
-    const message = await Message.findByIdAndUpdate(messageId, {
-      seen: true,
-      seenAt
-    }, { new: true });
-
-    if (onlineUsers[from]) {
-      io.to(onlineUsers[from]).emit('message-seen', {
+    const message = await Message.findByIdAndUpdate(messageId, { seen: true, seenAt }, { new: true });
+    const sender = onlineUsers[from];
+    if (sender && message) {
+      io.to(sender).emit('message-seen', {
         messageId,
-        by: to,
         seenAt
       });
     }
   });
 
   socket.on('typing', ({ from, to }) => {
-    if (onlineUsers[to]) {
-      io.to(onlineUsers[to]).emit('typing', { from, to });
-    }
+    const receiver = onlineUsers[to];
+    if (receiver) io.to(receiver).emit('typing', { from, to });
   });
 
   socket.on('stop-typing', ({ from, to }) => {
-    if (onlineUsers[to]) {
-      io.to(onlineUsers[to]).emit('stop-typing', { from, to });
-    }
+    const receiver = onlineUsers[to];
+    if (receiver) io.to(receiver).emit('stop-typing', { from, to });
   });
 });
 
@@ -89,7 +85,7 @@ app.get('/messages/:from/:to', async (req, res) => {
       { from, to },
       { from: to, to: from }
     ]
-  }).sort('createdAt');
+  }).sort({ createdAt: 1 });
   res.json(messages);
 });
 
