@@ -56,6 +56,12 @@
       color: gray;
       margin-top: 2px;
     }
+    .day-separator {
+      text-align: center;
+      font-size: 12px;
+      color: gray;
+      margin: 10px 0;
+    }
     #input-area {
       display: flex;
       padding: 10px;
@@ -78,6 +84,11 @@
       font-weight: bold;
       cursor: pointer;
     }
+    #typing-indicator {
+      font-size: 12px;
+      color: gray;
+      margin: 5px 10px;
+    }
   </style>
 </head>
 <body>
@@ -88,9 +99,10 @@
 </header>
 
 <div id="chat-container"></div>
+<div id="typing-indicator"></div>
 
 <div id="input-area">
-  <input type="text" id="message-input" placeholder="Type a message..." />
+  <input type="text" id="message-input" placeholder="Type a message..." oninput="emitTyping()" />
   <button id="send-button" onclick="sendMessage()">Send</button>
 </div>
 
@@ -99,7 +111,9 @@
   const user = JSON.parse(localStorage.getItem('user'));
   const friendId = new URLSearchParams(location.search).get('fid');
   const chatContainer = document.getElementById('chat-container');
+  const typingIndicator = document.getElementById('typing-indicator');
   const seenMessages = new Set();
+  let lastMessageDay = '';
 
   socket.emit('user-connected', user._id);
 
@@ -117,8 +131,14 @@
   async function loadHistory() {
     const res = await fetch(`https://test-5-jdfo.onrender.com/messages/${user._id}/${friendId}`);
     const messages = await res.json();
+
     messages.forEach(msg => {
       const type = msg.from === user._id ? 'me' : 'you';
+      const msgDate = formatDay(new Date(msg.timestamp || msg.createdAt));
+      if (msgDate !== lastMessageDay) {
+        addDateSeparator(msgDate);
+        lastMessageDay = msgDate;
+      }
       const msgEl = addMessage(msg.text, type, msg._id, msg.seen, msg.seenAt);
       if (type === 'you' && !msg.seen) {
         observeVisibility(msgEl, msg._id, msg.from, msg.to);
@@ -129,6 +149,11 @@
   socket.on('chat-message', (msg) => {
     if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
       const type = msg.from === user._id ? 'me' : 'you';
+      const msgDate = formatDay(new Date(msg.timestamp || msg.createdAt));
+      if (msgDate !== lastMessageDay) {
+        addDateSeparator(msgDate);
+        lastMessageDay = msgDate;
+      }
       const msgEl = addMessage(msg.text, type, msg._id, msg.seen, msg.seenAt);
       if (type === 'you' && !msg.seen) {
         observeVisibility(msgEl, msg._id, msg.from, msg.to);
@@ -155,6 +180,7 @@
 
     socket.emit('chat-message', msg);
     input.value = '';
+    socket.emit('typing', { to: friendId, isTyping: false });
   }
 
   function addMessage(text, type, msgId = '', seen = false, seenAt = null) {
@@ -180,6 +206,24 @@
     return row;
   }
 
+  function addDateSeparator(dateText) {
+    const sep = document.createElement('div');
+    sep.className = 'day-separator';
+    sep.textContent = dateText;
+    chatContainer.appendChild(sep);
+  }
+
+  function formatDay(date) {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const d = date.toDateString();
+    if (d === today.toDateString()) return 'Today';
+    if (d === yesterday.toDateString()) return 'Yesterday';
+    return date.toLocaleDateString();
+  }
+
   function observeVisibility(el, messageId, from, to) {
     if (seenMessages.has(messageId)) return;
 
@@ -191,12 +235,28 @@
           observer.unobserve(el);
         }
       });
-    }, {
-      threshold: 0.5
-    });
+    }, { threshold: 0.5 });
 
     observer.observe(el);
   }
+
+  // Typing indicator logic
+  let typingTimeout;
+  const inputField = document.getElementById('message-input');
+
+  function emitTyping() {
+    socket.emit('typing', { to: friendId, isTyping: true });
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      socket.emit('typing', { to: friendId, isTyping: false });
+    }, 1500);
+  }
+
+  socket.on('typing', ({ from, isTyping }) => {
+    if (from === friendId) {
+      typingIndicator.textContent = isTyping ? 'Typing...' : '';
+    }
+  });
 
   loadHistory();
 </script>
