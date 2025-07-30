@@ -17,6 +17,7 @@ app.use(express.json());
 
 let onlineUsers = {}; // { userId: socket.id }
 
+const userSocketMap = {};
 io.on('connection', (socket) => {
   console.log('🔌 New client connected:', socket.id);
 
@@ -51,6 +52,14 @@ io.on('connection', (socket) => {
         seenAt
       });
     }
+  });
+
+socket.on('typing', ({ from, to }) => {
+    io.to(userSocketMap[to]).emit('typing', { from, to });
+  });
+
+  socket.on('stop-typing', ({ from, to }) => {
+    io.to(userSocketMap[to]).emit('stop-typing', { from, to });
   });
 });
 
