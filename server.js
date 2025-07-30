@@ -45,8 +45,10 @@ const FriendRequest = mongoose.model('FriendRequest', new mongoose.Schema({
   status: { type: String, default: 'pending' }
 }));
 
+// 🔐 OTP Store
 const otps = {};
 
+// 📬 Nodemailer
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -87,10 +89,7 @@ io.on('connection', (socket) => {
     const seenAt = new Date();
     const updated = await Message.findByIdAndUpdate(messageId, { seen: true, seenAt }, { new: true });
     if (updated && onlineUsers[from]) {
-      io.to(onlineUsers[from]).emit('message-seen', {
-        messageId,
-        seenAt
-      });
+      io.to(onlineUsers[from]).emit('message-seen', { messageId });
     }
   });
 
@@ -114,13 +113,7 @@ app.get('/messages/:from/:to', async (req, res) => {
   res.json(messages);
 });
 
-app.get('/me/:id', async (req, res) => {
-  const user = await User.findById(req.params.id).populate('friends', 'fullname username');
-  if (!user) return res.status(404).json({ success: false });
-  res.json({ success: true, user });
-});
-
-// ✅ Register/Login/OTP
+// ✅ Remaining Routes (Register/Login/Profile/OTP)
 app.post('/register', async (req, res) => {
   const { username, email, password, fullname, phone } = req.body;
   const exists = await User.findOne({ $or: [{ username }, { email }] });
@@ -163,6 +156,12 @@ app.post('/reset-password', async (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/me/:id', async (req, res) => {
+  const user = await User.findById(req.params.id).populate('friends', 'fullname username');
+  if (!user) return res.status(404).json({ success: false });
+  res.json({ success: true, user });
+});
+
 // ✅ Start Server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server listening on port ${PORT}`));
