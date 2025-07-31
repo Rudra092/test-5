@@ -13,11 +13,7 @@
       --bubble-me: #d1e7ff;
       --bubble-you: #e4e6eb;
     }
-
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       padding: 0;
@@ -27,7 +23,6 @@
       display: flex;
       flex-direction: column;
     }
-
     header {
       background-color: var(--primary);
       color: white;
@@ -36,7 +31,6 @@
       font-weight: bold;
       text-align: center;
     }
-
     #chat-container {
       flex: 1;
       display: flex;
@@ -44,23 +38,9 @@
       padding: 10px;
       overflow-y: auto;
     }
-
-    .message-row {
-      display: flex;
-      margin: 8px 0;
-      align-items: flex-end;
-    }
-
-    .message.me {
-      background-color: var(--bubble-me);
-      margin-left: auto;
-    }
-
-    .message.you {
-      background-color: var(--bubble-you);
-      margin-right: auto;
-    }
-
+    .message-row { display: flex; margin: 8px 0; align-items: flex-end; }
+    .message.me { background-color: var(--bubble-me); margin-left: auto; }
+    .message.you { background-color: var(--bubble-you); margin-right: auto; }
     .message {
       max-width: 70%;
       padding: 10px 14px;
@@ -70,14 +50,12 @@
       box-shadow: 0 1px 2px rgba(0,0,0,0.1);
       word-wrap: break-word;
     }
-
     #input-area {
       display: flex;
       padding: 10px;
       background: white;
       border-top: 1px solid #ccc;
     }
-
     #message-input {
       flex: 1;
       padding: 12px;
@@ -86,7 +64,6 @@
       font-size: 15px;
       outline: none;
     }
-
     #send-button {
       background: var(--primary);
       color: white;
@@ -97,26 +74,7 @@
       font-weight: bold;
       cursor: pointer;
     }
-
-    #send-button:hover {
-      background: #145dbf;
-    }
-
-    @media (max-width: 600px) {
-      .message {
-        max-width: 85%;
-        font-size: 14px;
-      }
-
-      #send-button {
-        padding: 8px 14px;
-        font-size: 14px;
-      }
-
-      #message-input {
-        font-size: 14px;
-      }
-    }
+    #send-button:hover { background: #145dbf; }
   </style>
 </head>
 <body>
@@ -125,71 +83,57 @@
   Chat with <span id="friend-name">...</span> <span id="friend-status" style="font-weight: normal; font-size: 14px;">(offline)</span>
 </header>
 
-  <div id="chat-container"></div>
+<div id="chat-container"></div>
 
-  <div id="input-area">
-    <input type="text" id="message-input" placeholder="Type a message..." />
-    <button id="send-button" onclick="sendMessage()">Send</button>
-  </div>
+<div id="input-area">
+  <input type="text" id="message-input" placeholder="Type a message..." />
+  <button id="send-button" onclick="sendMessage()">Send</button>
+</div>
   
 <script>
-  const socket = io('https://test-5-jdfo.onrender.com');
-  const user = JSON.parse(localStorage.getItem('user'));
-  const urlParams = new URLSearchParams(window.location.search);
-  const friendId = urlParams.get('fid');
-  const chatContainer = document.getElementById('chat-container');
-  let onlineIds = [];
+const socket = io('https://test-5-jdfo.onrender.com');
+const user = JSON.parse(localStorage.getItem('user'));
+const urlParams = new URLSearchParams(window.location.search);
+const friendId = urlParams.get('fid');
+const chatContainer = document.getElementById('chat-container');
 
-  document.getElementById('friend-name').textContent = '...';
-
-  // Get friend info
-  fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
-    .then(res => res.json())
-    .then(data => {
-      document.getElementById('friend-name').textContent = data.user.fullname;
-    });
-
-  // Get message history
-  fetch(`https://test-5-jdfo.onrender.com/chat-history/${user._id}/${friendId}`)
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        data.messages.forEach(msg => {
-          const type = msg.from === user._id ? 'me' : 'you';
-          addMessage(msg.text, type, msg.timestamp, msg.seen);
-        });
-        scrollToBottom();
-        // Mark messages as seen
-        if (document.visibilityState === 'visible' && document.hasFocus()) {
-  socket.emit('mark-seen', { from: friendId, to: user._id });
-}
-      }
-    });
-
-  socket.emit('user-connected', user._id);
-
-  socket.on('online-users', (ids) => {
-    onlineIds = ids;
-    const isFriendOnline = onlineIds.includes(friendId);
-    const statusEl = document.getElementById('friend-status');
-    if (statusEl) {
-      statusEl.textContent = isFriendOnline ? '(online 🟢)' : '(offline ⚫)';
-    }
+fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById('friend-name').textContent = data.user.fullname;
   });
 
-  socket.on('chat-message', (msg) => {
-    const relevant = (msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id);
-    if (relevant) {
-      const type = msg.from === user._id ? 'me' : 'you';
-      addMessage(msg.text, type, msg.timestamp, msg.seen);
+fetch(`https://test-5-jdfo.onrender.com/chat-history/${user._id}/${friendId}`)
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      data.messages.forEach(msg => {
+        const type = msg.from === user._id ? 'me' : 'you';
+        addMessage(msg.text, type, msg.timestamp, msg.seen);
+      });
       scrollToBottom();
-
-      // Mark as seen
-if (!msg.seen && msg.to === user._id && document.visibilityState === 'visible' && document.hasFocus()) {
-  socket.emit('mark-seen', { from: msg.from, to: msg.to });
-}
     }
   });
+
+socket.emit('user-connected', user._id);
+
+socket.on('online-users', (ids) => {
+  const status = ids.includes(friendId) ? '(online 🟢)' : '(offline ⚫)';
+  document.getElementById('friend-status').textContent = status;
+});
+
+socket.on('chat-message', (msg) => {
+  const relevant = (msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id);
+  if (relevant) {
+    const type = msg.from === user._id ? 'me' : 'you';
+    addMessage(msg.text, type, msg.timestamp, msg.seen);
+    scrollToBottom();
+
+    if (!msg.seen && msg.to === user._id && document.visibilityState === 'visible' && document.hasFocus()) {
+      socket.emit('mark-seen', { from: msg.from, to: msg.to });
+    }
+  }
+});
 
 socket.on('seen-update', (info) => {
   if (info.to === user._id && info.from === friendId) {
@@ -203,39 +147,31 @@ socket.on('seen-update', (info) => {
   }
 });
 
-  function sendMessage() {
-    const input = document.getElementById('message-input');
-    const text = input.value.trim();
-    if (!text) return;
+function sendMessage() {
+  const input = document.getElementById('message-input');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('chat-message', { from: user._id, to: friendId, text });
+  input.value = '';
+}
 
-    socket.emit('chat-message', {
-      from: user._id,
-      to: friendId,
-      text
-    });
+function addMessage(text, type, timestamp, seen = false) {
+  const row = document.createElement('div');
+  row.className = `message-row`;
 
-    input.value = '';
-  }
+  const bubble = document.createElement('div');
+  bubble.className = `message ${type}`;
+  const dateStr = timestamp ? new Date(timestamp).toLocaleString() : '';
+  const seenStr = type === 'me' && seen ? ' (seen)' : '';
+  bubble.innerHTML = `${text}<br><span style="font-size: 11px; color: gray;">${dateStr}${seenStr}</span>`;
 
-  function addMessage(text, type, timestamp, seen = false) {
-    const row = document.createElement('div');
-    row.className = `message-row`;
+  row.appendChild(bubble);
+  chatContainer.appendChild(row);
+}
 
-    const bubble = document.createElement('div');
-    bubble.className = `message ${type}`;
-
-    const dateStr = timestamp ? new Date(timestamp).toLocaleString() : '';
-    const seenStr = type === 'me' && seen ? ' (seen)' : '';
-
-    bubble.innerHTML = `${text}<br><span style="font-size: 11px; color: gray;">${dateStr}${seenStr}</span>`;
-
-    row.appendChild(bubble);
-    chatContainer.appendChild(row);
-  }
-
-  function scrollToBottom() {
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-  }
+function scrollToBottom() {
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
 </script>
 
 </body>

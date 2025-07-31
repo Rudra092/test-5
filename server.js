@@ -50,7 +50,6 @@ socket.on('chat-message', async (msg) => {
   });
 });
 
-// Mark message as seen
 socket.on('mark-seen', async ({ from, to }) => {
   const result = await Message.updateMany({ from, to, seen: false }, { seen: true });
 
