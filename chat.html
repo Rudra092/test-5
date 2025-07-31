@@ -129,8 +129,9 @@ socket.on('chat-message', (msg) => {
     addMessage(msg.text, type, msg.timestamp, msg.seen);
     scrollToBottom();
 
+    // Place mark-seen correctly here
     if (!msg.seen && msg.to === user._id && document.visibilityState === 'visible' && document.hasFocus()) {
-      socket.emit('mark-seen', { from: otherUserId, to: myUserId });
+      socket.emit('mark-seen', { from: friendId, to: user._id });
     }
   }
 });
