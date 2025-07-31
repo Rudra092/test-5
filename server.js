@@ -53,6 +53,12 @@ socket.on('chat-message', async (msg) => {
 // Mark message as seen
 socket.on('mark-seen', async ({ from, to }) => {
   await Message.updateMany({ from, to, seen: false }, { seen: true });
+
+  // Notify sender in real-time
+  const senderSocketId = onlineUsers[from];
+  if (senderSocketId) {
+    io.to(senderSocketId).emit('seen-update', { from: to, to: from });
+  }
 });
 
 });

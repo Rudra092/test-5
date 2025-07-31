@@ -189,6 +189,16 @@
     }
   });
 
+socket.on('seen-update', (info) => {
+  if (info.to === user._id && info.from === friendId) {
+    const allBubbles = document.querySelectorAll('.message.me span');
+    if (allBubbles.length > 0) {
+      const lastSeen = allBubbles[allBubbles.length - 1];
+      lastSeen.textContent += ' (seen)';
+    }
+  }
+});
+
   function sendMessage() {
     const input = document.getElementById('message-input');
     const text = input.value.trim();
