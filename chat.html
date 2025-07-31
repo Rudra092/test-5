@@ -160,7 +160,9 @@
         });
         scrollToBottom();
         // Mark messages as seen
-        socket.emit('mark-seen', { from: friendId, to: user._id });
+        if (document.visibilityState === 'visible' && document.hasFocus()) {
+  socket.emit('mark-seen', { from: friendId, to: user._id });
+}
       }
     });
 
@@ -183,9 +185,9 @@
       scrollToBottom();
 
       // Mark as seen
-      if (msg.to === user._id) {
-        socket.emit('mark-seen', { from: msg.from, to: msg.to });
-      }
+if (document.visibilityState === 'visible' && document.hasFocus()) {
+  socket.emit('mark-seen', { from: msg.from, to: msg.to });
+}
     }
   });
 
