@@ -114,6 +114,21 @@ io.on('connection', (socket) => {
       }
     }
   });
+
+  // Handle typing indicators
+  socket.on('typing-start', ({ from, to }) => {
+    const recipientSocketId = onlineUsers[to];
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('user-typing', { userId: from, isTyping: true });
+    }
+  });
+
+  socket.on('typing-stop', ({ from, to }) => {
+    const recipientSocketId = onlineUsers[to];
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('user-typing', { userId: from, isTyping: false });
+    }
+  });
 });
 
 // 🔗 MongoDB

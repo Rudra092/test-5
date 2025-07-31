@@ -98,6 +98,47 @@
       cursor: pointer;
     }
     #send-button:hover { background: #145dbf; }
+    
+    .typing-indicator {
+      display: none;
+      padding: 10px 15px;
+      margin: 5px 0;
+      background-color: var(--bubble-you);
+      border-radius: 18px;
+      max-width: 70%;
+      margin-right: auto;
+      font-size: 14px;
+      color: #666;
+      font-style: italic;
+    }
+    
+    .typing-dots {
+      display: inline-block;
+    }
+    
+    .typing-dots span {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #999;
+      margin: 0 1px;
+      animation: typing 1.4s infinite ease-in-out;
+    }
+    
+    .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes typing {
+      0%, 80%, 100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+      }
+      40% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
   </style>
 </head>
 <body>
@@ -106,7 +147,16 @@
   Chat with <span id="friend-name">...</span> <span id="friend-status" style="font-weight: normal; font-size: 14px;">(offline)</span>
 </header>
 
-<div id="chat-container"></div>
+<div id="chat-container">
+  <div id="typing-indicator" class="typing-indicator">
+    <span id="friend-name-typing">Friend</span> is typing
+    <span class="typing-dots">
+      <span></span>
+      <span></span>
+      <span></span>
+    </span>
+  </div>
+</div>
 
 <div id="input-area">
   <input type="text" id="message-input" placeholder="Type a message..." />
@@ -123,6 +173,8 @@ const chatContainer = document.getElementById('chat-container');
 let isPageVisible = true;
 let hasFocus = true;
 let lastDateShown = null;
+let typingTimer = null;
+let isTyping = false;
 
 // Track page visibility and focus
 document.addEventListener('visibilitychange', () => {
@@ -147,6 +199,7 @@ fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
   .then(res => res.json())
   .then(data => {
     document.getElementById('friend-name').textContent = data.user.fullname;
+    document.getElementById('friend-name-typing').textContent = data.user.fullname;
   });
 
 fetch(`https://test-5-jdfo.onrender.com/chat-history/${user._id}/${friendId}`)
@@ -229,6 +282,18 @@ socket.on('messages-seen', (info) => {
   }
 });
 
+socket.on('user-typing', (data) => {
+  if (data.userId === friendId) {
+    const typingIndicator = document.getElementById('typing-indicator');
+    if (data.isTyping) {
+      typingIndicator.style.display = 'block';
+      scrollToBottom();
+    } else {
+      typingIndicator.style.display = 'none';
+    }
+  }
+});
+
 function markMessagesAsSeen() {
   // Only mark messages as seen if there are unseen messages from friend
   const unseenMessages = document.querySelectorAll('.message.you');
@@ -281,8 +346,33 @@ function sendMessage() {
   const text = input.value.trim();
   if (!text) return;
   
+  // Stop typing indicator when sending message
+  if (isTyping) {
+    socket.emit('typing-stop', { from: user._id, to: friendId });
+    isTyping = false;
+  }
+  
   socket.emit('chat-message', { from: user._id, to: friendId, text });
   input.value = '';
+}
+
+function handleTyping() {
+  // Start typing indicator if not already typing
+  if (!isTyping) {
+    socket.emit('typing-start', { from: user._id, to: friendId });
+    isTyping = true;
+  }
+  
+  // Clear existing timer
+  clearTimeout(typingTimer);
+  
+  // Set timer to stop typing indicator after 2 seconds of inactivity
+  typingTimer = setTimeout(() => {
+    if (isTyping) {
+      socket.emit('typing-stop', { from: user._id, to: friendId });
+      isTyping = false;
+    }
+  }, 2000);
 }
 
 function addMessage(text, type, timestamp, seen = false) {
@@ -315,6 +405,27 @@ function scrollToBottom() {
 document.getElementById('message-input').addEventListener('keypress', function(e) {
   if (e.key === 'Enter') {
     sendMessage();
+  }
+});
+
+// Handle typing indicator
+document.getElementById('message-input').addEventListener('input', function(e) {
+  if (e.target.value.trim().length > 0) {
+    handleTyping();
+  } else if (isTyping) {
+    // Stop typing if input is empty
+    socket.emit('typing-stop', { from: user._id, to: friendId });
+    isTyping = false;
+    clearTimeout(typingTimer);
+  }
+});
+
+// Stop typing when user leaves the input field
+document.getElementById('message-input').addEventListener('blur', function() {
+  if (isTyping) {
+    socket.emit('typing-stop', { from: user._id, to: friendId });
+    isTyping = false;
+    clearTimeout(typingTimer);
   }
 });
 </script>
