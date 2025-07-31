@@ -107,11 +107,26 @@ fetch(`https://test-5-jdfo.onrender.com/chat-history/${user._id}/${friendId}`)
   .then(res => res.json())
   .then(data => {
     if (data.success) {
-      data.messages.forEach(msg => {
-        const type = msg.from === user._id ? 'me' : 'you';
-        addMessage(msg.text, type, msg.timestamp, msg.seen);
-      });
-      scrollToBottom();
+let lastMessageFromFriend = null;
+
+data.messages.forEach(msg => {
+  const type = msg.from === user._id ? 'me' : 'you';
+  addMessage(msg.text, type, msg.timestamp, msg.seen);
+  if (msg.from === friendId) {
+    lastMessageFromFriend = msg;
+  }
+});
+scrollToBottom();
+
+// Emit mark-seen if the last message from friend is unseen and we are focused
+if (
+  lastMessageFromFriend &&
+  !lastMessageFromFriend.seen &&
+  document.visibilityState === 'visible' &&
+  document.hasFocus()
+) {
+  socket.emit('mark-seen', { from: friendId, to: user._id });
+}
     }
   });
 
