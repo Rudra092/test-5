@@ -157,9 +157,20 @@ socket.on('chat-message', (msg) => {
     addMessage(msg.text, type, msg.timestamp, msg.seen);
     scrollToBottom();
 
-    // Place mark-seen correctly here
+    // If it's a message FROM friend TO me and I can see it now, mark it seen
     if (!msg.seen && msg.to === user._id && document.visibilityState === 'visible' && document.hasFocus()) {
       socket.emit('mark-seen', { from: friendId, to: user._id });
+    }
+
+    // ✅ NEW: If it's my message and has now been marked seen, show "seen"
+    if (msg.from === user._id && msg.seen) {
+      const allBubbles = document.querySelectorAll('.message.me span');
+      if (allBubbles.length > 0) {
+        const lastSeen = allBubbles[allBubbles.length - 1];
+        if (!lastSeen.textContent.includes('(seen)')) {
+          lastSeen.textContent += ' (seen)';
+        }
+      }
     }
   }
 });
