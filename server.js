@@ -35,9 +35,26 @@ io.on('connection', (socket) => {
     io.emit('online-users', Object.keys(onlineUsers)); // Broadcast updated list
   });
 
-  socket.on('chat-message', (msg) => {
-    io.emit('chat-message', msg);
+socket.on('chat-message', async (msg) => {
+  const newMsg = new Message({
+    from: msg.from,
+    to: msg.to,
+    text: msg.text
   });
+  await newMsg.save();
+
+  io.emit('chat-message', {
+    ...msg,
+    timestamp: newMsg.timestamp,
+    seen: false
+  });
+});
+
+// Mark message as seen
+socket.on('mark-seen', async ({ from, to }) => {
+  await Message.updateMany({ from, to, seen: false }, { seen: true });
+});
+
 });
 
 // 🔗 MongoDB
@@ -63,6 +80,16 @@ const FriendRequest = mongoose.model('FriendRequest', new mongoose.Schema({
   to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, default: 'pending' } // pending, accepted
 }));
+
+// 📩 Message Schema
+const messageSchema = new mongoose.Schema({
+  from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  to: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  text: String,
+  timestamp: { type: Date, default: Date.now },
+  seen: { type: Boolean, default: false }
+});
+const Message = mongoose.model('Message', messageSchema);
 
 // 📧 OTP Store
 const otps = {};
@@ -200,6 +227,20 @@ app.get('/friend-requests/:id', async (req, res) => {
 app.get('/friend-requests/sent/:id', async (req, res) => {
   const requests = await FriendRequest.find({ from: req.params.id, status: 'pending' }).populate('to', 'fullname username');
   res.json(requests);
+});
+
+// 📜 Get chat history between two users
+app.get('/chat-history/:userId1/:userId2', async (req, res) => {
+  const { userId1, userId2 } = req.params;
+
+  const messages = await Message.find({
+    $or: [
+      { from: userId1, to: userId2 },
+      { from: userId2, to: userId1 }
+    ]
+  }).sort('timestamp');
+
+  res.json({ success: true, messages });
 });
 
 // ✅ Accept Friend Request

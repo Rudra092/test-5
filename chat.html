@@ -140,10 +140,28 @@
   const chatContainer = document.getElementById('chat-container');
   let onlineIds = [];
 
+  document.getElementById('friend-name').textContent = '...';
+
+  // Get friend info
   fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
     .then(res => res.json())
     .then(data => {
       document.getElementById('friend-name').textContent = data.user.fullname;
+    });
+
+  // Get message history
+  fetch(`https://test-5-jdfo.onrender.com/chat-history/${user._id}/${friendId}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        data.messages.forEach(msg => {
+          const type = msg.from === user._id ? 'me' : 'you';
+          addMessage(msg.text, type, msg.timestamp, msg.seen);
+        });
+        scrollToBottom();
+        // Mark messages as seen
+        socket.emit('mark-seen', { from: friendId, to: user._id });
+      }
     });
 
   socket.emit('user-connected', user._id);
@@ -158,9 +176,16 @@
   });
 
   socket.on('chat-message', (msg) => {
-    if ((msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id)) {
+    const relevant = (msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id);
+    if (relevant) {
       const type = msg.from === user._id ? 'me' : 'you';
-      addMessage(msg.text, type);
+      addMessage(msg.text, type, msg.timestamp, msg.seen);
+      scrollToBottom();
+
+      // Mark as seen
+      if (msg.to === user._id) {
+        socket.emit('mark-seen', { from: msg.from, to: msg.to });
+      }
     }
   });
 
@@ -169,20 +194,32 @@
     const text = input.value.trim();
     if (!text) return;
 
-    socket.emit('chat-message', { from: user._id, to: friendId, text });
+    socket.emit('chat-message', {
+      from: user._id,
+      to: friendId,
+      text
+    });
+
     input.value = '';
   }
 
-  function addMessage(text, type) {
+  function addMessage(text, type, timestamp, seen = false) {
     const row = document.createElement('div');
     row.className = `message-row`;
 
     const bubble = document.createElement('div');
     bubble.className = `message ${type}`;
-    bubble.textContent = text;
+
+    const dateStr = timestamp ? new Date(timestamp).toLocaleString() : '';
+    const seenStr = type === 'me' && seen ? ' (seen)' : '';
+
+    bubble.innerHTML = `${text}<br><span style="font-size: 11px; color: gray;">${dateStr}${seenStr}</span>`;
 
     row.appendChild(bubble);
     chatContainer.appendChild(row);
+  }
+
+  function scrollToBottom() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
   }
 </script>
