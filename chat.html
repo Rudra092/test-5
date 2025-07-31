@@ -38,6 +38,29 @@
       padding: 10px;
       overflow-y: auto;
     }
+    .date-header {
+      text-align: center;
+      margin: 20px 0 10px 0;
+      font-size: 12px;
+      color: #666;
+      font-weight: bold;
+      position: relative;
+    }
+    .date-header::before,
+    .date-header::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 30%;
+      height: 1px;
+      background: #ddd;
+    }
+    .date-header::before { left: 0; }
+    .date-header::after { right: 0; }
+    .date-header span {
+      background: var(--bg);
+      padding: 0 15px;
+    }
     .message-row { display: flex; margin: 8px 0; align-items: flex-end; }
     .message.me { background-color: var(--bubble-me); margin-left: auto; }
     .message.you { background-color: var(--bubble-you); margin-right: auto; }
@@ -99,6 +122,7 @@ const chatContainer = document.getElementById('chat-container');
 
 let isPageVisible = true;
 let hasFocus = true;
+let lastDateShown = null;
 
 // Track page visibility and focus
 document.addEventListener('visibilitychange', () => {
@@ -129,10 +153,22 @@ fetch(`https://test-5-jdfo.onrender.com/chat-history/${user._id}/${friendId}`)
   .then(res => res.json())
   .then(data => {
     if (data.success && data.messages.length > 0) {
+      // Group messages by date and add them with date headers
+      let lastDate = null;
+      
       data.messages.forEach(msg => {
+        const msgDate = new Date(msg.timestamp).toDateString();
+        
+        // Add date header if date changed
+        if (msgDate !== lastDate) {
+          addDateHeader(msgDate);
+          lastDate = msgDate;
+        }
+        
         const type = msg.from === user._id ? 'me' : 'you';
         addMessage(msg.text, type, msg.timestamp, msg.seen);
       });
+      
       scrollToBottom();
       
       // Mark messages as seen if user is currently viewing the chat
@@ -155,6 +191,15 @@ socket.on('online-users', (ids) => {
 socket.on('chat-message', (msg) => {
   const relevant = (msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id);
   if (!relevant) return;
+
+  // Check if we need to add a date header for new message
+  const msgDate = new Date(msg.timestamp).toDateString();
+  const today = new Date().toDateString();
+  
+  if (msgDate !== lastDateShown) {
+    addDateHeader(msgDate);
+    lastDateShown = msgDate;
+  }
 
   const type = msg.from === user._id ? 'me' : 'you';
   addMessage(msg.text, type, msg.timestamp, msg.seen);
@@ -192,6 +237,35 @@ function markMessagesAsSeen() {
   }
 }
 
+function addDateHeader(dateString) {
+  const dateHeader = document.createElement('div');
+  dateHeader.className = 'date-header';
+  
+  // Format the date nicely
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  let displayDate;
+  if (date.toDateString() === today.toDateString()) {
+    displayDate = 'Today';
+  } else if (date.toDateString() === yesterday.toDateString()) {
+    displayDate = 'Yesterday';
+  } else {
+    displayDate = date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  }
+  
+  dateHeader.innerHTML = `<span>${displayDate}</span>`;
+  chatContainer.appendChild(dateHeader);
+  lastDateShown = dateString;
+}
+
 function updateMyMessagesAsSeen() {
   // Update all my message bubbles to show "seen"
   const myMessages = document.querySelectorAll('.message.me .timestamp');
@@ -218,10 +292,16 @@ function addMessage(text, type, timestamp, seen = false) {
   const bubble = document.createElement('div');
   bubble.className = `message ${type}`;
   
-  const dateStr = timestamp ? new Date(timestamp).toLocaleString() : '';
+  // Format time only (since date is shown in header)
+  const time = timestamp ? new Date(timestamp).toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true 
+  }) : '';
+  
   const seenStr = (type === 'me' && seen) ? ' (seen)' : '';
   
-  bubble.innerHTML = `${text}<br><span class="timestamp" style="font-size: 11px; color: gray;">${dateStr}${seenStr}</span>`;
+  bubble.innerHTML = `${text}<br><span class="timestamp" style="font-size: 11px; color: gray;">${time}${seenStr}</span>`;
 
   row.appendChild(bubble);
   chatContainer.appendChild(row);
