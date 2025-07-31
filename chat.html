@@ -185,7 +185,7 @@
       scrollToBottom();
 
       // Mark as seen
-if (document.visibilityState === 'visible' && document.hasFocus()) {
+if (!msg.seen && msg.to === user._id && document.visibilityState === 'visible' && document.hasFocus()) {
   socket.emit('mark-seen', { from: msg.from, to: msg.to });
 }
     }
@@ -196,7 +196,9 @@ socket.on('seen-update', (info) => {
     const allBubbles = document.querySelectorAll('.message.me span');
     if (allBubbles.length > 0) {
       const lastSeen = allBubbles[allBubbles.length - 1];
-      lastSeen.textContent += ' (seen)';
+      if (!lastSeen.textContent.includes('(seen)')) {
+        lastSeen.textContent += ' (seen)';
+      }
     }
   }
 });
