@@ -107,26 +107,39 @@ fetch(`https://test-5-jdfo.onrender.com/chat-history/${user._id}/${friendId}`)
   .then(res => res.json())
   .then(data => {
     if (data.success) {
-let lastMessageFromFriend = null;
+      let lastMessageFromFriend = null;
 
-data.messages.forEach(msg => {
-  const type = msg.from === user._id ? 'me' : 'you';
-  addMessage(msg.text, type, msg.timestamp, msg.seen);
-  if (msg.from === friendId) {
-    lastMessageFromFriend = msg;
-  }
-});
-scrollToBottom();
+      data.messages.forEach(msg => {
+        const type = msg.from === user._id ? 'me' : 'you';
+        addMessage(msg.text, type, msg.timestamp, msg.seen);
+        if (msg.from === friendId) {
+          lastMessageFromFriend = msg;
+        }
+      });
 
-// Emit mark-seen if the last message from friend is unseen and we are focused
-if (
-  lastMessageFromFriend &&
-  !lastMessageFromFriend.seen &&
-  document.visibilityState === 'visible' &&
-  document.hasFocus()
-) {
-  socket.emit('mark-seen', { from: friendId, to: user._id });
-}
+      scrollToBottom();
+
+      // 🟢 FIX: Add this check for message you sent that got seen while you were offline
+      const lastMessageFromMe = [...data.messages].reverse().find(m => m.from === user._id);
+      if (lastMessageFromMe?.seen) {
+        const allBubbles = document.querySelectorAll('.message.me span');
+        if (allBubbles.length > 0) {
+          const lastSeen = allBubbles[allBubbles.length - 1];
+          if (!lastSeen.textContent.includes('(seen)')) {
+            lastSeen.textContent += ' (seen)';
+          }
+        }
+      }
+
+      // Mark last friend message as seen if needed
+      if (
+        lastMessageFromFriend &&
+        !lastMessageFromFriend.seen &&
+        document.visibilityState === 'visible' &&
+        document.hasFocus()
+      ) {
+        socket.emit('mark-seen', { from: friendId, to: user._id });
+      }
     }
   });
 
