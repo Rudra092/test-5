@@ -97,6 +97,28 @@ const urlParams = new URLSearchParams(window.location.search);
 const friendId = urlParams.get('fid');
 const chatContainer = document.getElementById('chat-container');
 
+let isPageVisible = true;
+let hasFocus = true;
+
+// Track page visibility and focus
+document.addEventListener('visibilitychange', () => {
+  isPageVisible = !document.hidden;
+  if (isPageVisible && hasFocus) {
+    markMessagesAsSeen();
+  }
+});
+
+window.addEventListener('focus', () => {
+  hasFocus = true;
+  if (isPageVisible) {
+    markMessagesAsSeen();
+  }
+});
+
+window.addEventListener('blur', () => {
+  hasFocus = false;
+});
+
 fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
   .then(res => res.json())
   .then(data => {
@@ -106,44 +128,24 @@ fetch(`https://test-5-jdfo.onrender.com/me/${friendId}`)
 fetch(`https://test-5-jdfo.onrender.com/chat-history/${user._id}/${friendId}`)
   .then(res => res.json())
   .then(data => {
-    if (data.success) {
-      let lastMessageFromFriend = null;
-
+    if (data.success && data.messages.length > 0) {
       data.messages.forEach(msg => {
         const type = msg.from === user._id ? 'me' : 'you';
         addMessage(msg.text, type, msg.timestamp, msg.seen);
-        if (msg.from === friendId) {
-          lastMessageFromFriend = msg;
-        }
       });
-
       scrollToBottom();
-
-      // 🟢 FIX: Add this check for message you sent that got seen while you were offline
-      const lastMessageFromMe = [...data.messages].reverse().find(m => m.from === user._id);
-      if (lastMessageFromMe?.seen) {
-        const allBubbles = document.querySelectorAll('.message.me span');
-        if (allBubbles.length > 0) {
-          const lastSeen = allBubbles[allBubbles.length - 1];
-          if (!lastSeen.textContent.includes('(seen)')) {
-            lastSeen.textContent += ' (seen)';
-          }
-        }
-      }
-
-      // Mark last friend message as seen if needed
-      if (
-        lastMessageFromFriend &&
-        !lastMessageFromFriend.seen &&
-        document.visibilityState === 'visible' &&
-        document.hasFocus()
-      ) {
-        socket.emit('mark-seen', { from: friendId, to: user._id });
+      
+      // Mark messages as seen if user is currently viewing the chat
+      if (isPageVisible && hasFocus) {
+        markMessagesAsSeen();
       }
     }
   });
 
 socket.emit('user-connected', user._id);
+
+// Notify server that user entered this specific chat
+socket.emit('enter-chat', { userId: user._id, friendId: friendId });
 
 socket.on('online-users', (ids) => {
   const status = ids.includes(friendId) ? '(online 🟢)' : '(offline ⚫)';
@@ -152,58 +154,74 @@ socket.on('online-users', (ids) => {
 
 socket.on('chat-message', (msg) => {
   const relevant = (msg.to === user._id && msg.from === friendId) || (msg.to === friendId && msg.from === user._id);
-  if (relevant) {
-    const type = msg.from === user._id ? 'me' : 'you';
-    addMessage(msg.text, type, msg.timestamp, msg.seen);
-    scrollToBottom();
+  if (!relevant) return;
 
-    // If it's a message FROM friend TO me and I can see it now, mark it seen
-    if (!msg.seen && msg.to === user._id && document.visibilityState === 'visible' && document.hasFocus()) {
+  const type = msg.from === user._id ? 'me' : 'you';
+  addMessage(msg.text, type, msg.timestamp, msg.seen);
+  scrollToBottom();
+
+  // If it's a message from friend to me and I can see it, mark as seen
+  if (msg.from === friendId && msg.to === user._id && isPageVisible && hasFocus) {
+    setTimeout(() => {
       socket.emit('mark-seen', { from: friendId, to: user._id });
-    }
-
-    // ✅ NEW: If it's my message and has now been marked seen, show "seen"
-    if (msg.from === user._id && msg.seen) {
-      const allBubbles = document.querySelectorAll('.message.me span');
-      if (allBubbles.length > 0) {
-        const lastSeen = allBubbles[allBubbles.length - 1];
-        if (!lastSeen.textContent.includes('(seen)')) {
-          lastSeen.textContent += ' (seen)';
-        }
-      }
-    }
+    }, 100);
   }
 });
 
 socket.on('seen-update', (info) => {
+  console.log('Received seen update:', info);
+  
+  // Update all my messages to this friend as seen
   if (info.to === user._id && info.from === friendId) {
-    const allBubbles = document.querySelectorAll('.message.me span');
-    if (allBubbles.length > 0) {
-      const lastSeen = allBubbles[allBubbles.length - 1];
-      if (!lastSeen.textContent.includes('(seen)')) {
-        lastSeen.textContent += ' (seen)';
-      }
-    }
+    updateMyMessagesAsSeen();
   }
 });
+
+socket.on('messages-seen', (info) => {
+  // This is a backup event to ensure seen status is updated
+  if (info.from === friendId && info.to === user._id) {
+    updateMyMessagesAsSeen();
+  }
+});
+
+function markMessagesAsSeen() {
+  // Only mark messages as seen if there are unseen messages from friend
+  const unseenMessages = document.querySelectorAll('.message.you');
+  if (unseenMessages.length > 0) {
+    socket.emit('mark-seen', { from: friendId, to: user._id });
+  }
+}
+
+function updateMyMessagesAsSeen() {
+  // Update all my message bubbles to show "seen"
+  const myMessages = document.querySelectorAll('.message.me .timestamp');
+  myMessages.forEach(timestampSpan => {
+    if (!timestampSpan.textContent.includes('(seen)')) {
+      timestampSpan.textContent += ' (seen)';
+    }
+  });
+}
 
 function sendMessage() {
   const input = document.getElementById('message-input');
   const text = input.value.trim();
   if (!text) return;
+  
   socket.emit('chat-message', { from: user._id, to: friendId, text });
   input.value = '';
 }
 
 function addMessage(text, type, timestamp, seen = false) {
   const row = document.createElement('div');
-  row.className = `message-row`;
+  row.className = 'message-row';
 
   const bubble = document.createElement('div');
   bubble.className = `message ${type}`;
+  
   const dateStr = timestamp ? new Date(timestamp).toLocaleString() : '';
-  const seenStr = type === 'me' && seen ? ' (seen)' : '';
-  bubble.innerHTML = `${text}<br><span style="font-size: 11px; color: gray;">${dateStr}${seenStr}</span>`;
+  const seenStr = (type === 'me' && seen) ? ' (seen)' : '';
+  
+  bubble.innerHTML = `${text}<br><span class="timestamp" style="font-size: 11px; color: gray;">${dateStr}${seenStr}</span>`;
 
   row.appendChild(bubble);
   chatContainer.appendChild(row);
@@ -212,6 +230,13 @@ function addMessage(text, type, timestamp, seen = false) {
 function scrollToBottom() {
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
+
+// Handle Enter key for sending messages
+document.getElementById('message-input').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    sendMessage();
+  }
+});
 </script>
 
 </body>
