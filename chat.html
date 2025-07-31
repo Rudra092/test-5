@@ -130,7 +130,7 @@ socket.on('chat-message', (msg) => {
     scrollToBottom();
 
     if (!msg.seen && msg.to === user._id && document.visibilityState === 'visible' && document.hasFocus()) {
-      socket.emit('mark-seen', { from: msg.from, to: msg.to });
+      socket.emit('mark-seen', { from: otherUserId, to: myUserId });
     }
   }
 });
