@@ -20,11 +20,23 @@ let onlineUsers = {}; // { userId: socket.id }
 io.on('connection', (socket) => {
   console.log('🔌 New client connected:', socket.id);
 
-  socket.on('user-connected', (userId) => {
-    onlineUsers[userId] = socket.id;
-    console.log(`✅ User connected: ${userId}`);
-    io.emit('online-users', Object.keys(onlineUsers)); // Broadcast updated list
-  });
+socket.on('user-connected', async (userId) => {
+  onlineUsers[userId] = socket.id;
+  console.log(`✅ User connected: ${userId}`);
+  io.emit('online-users', Object.keys(onlineUsers));
+
+  // check unseen messages sent TO this user
+  const unseen = await Message.find({ to: userId, seen: false });
+  const uniqueSenders = [...new Set(unseen.map(m => m.from.toString()))];
+
+  for (const senderId of uniqueSenders) {
+    await Message.updateMany({ from: senderId, to: userId, seen: false }, { seen: true });
+    const senderSocket = onlineUsers[senderId];
+    if (senderSocket) {
+      io.to(senderSocket).emit('seen-update', { from: userId, to: senderId });
+    }
+  }
+});
 
   socket.on('disconnect', () => {
     const disconnectedUserId = Object.keys(onlineUsers).find(uid => onlineUsers[uid] === socket.id);
