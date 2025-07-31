@@ -106,10 +106,15 @@
       background-color: var(--bubble-you);
       border-radius: 18px;
       max-width: 70%;
-      margin-right: auto;
       font-size: 14px;
       color: #666;
       font-style: italic;
+      animation: fadeIn 0.2s ease-in;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     
     .typing-dots {
@@ -147,16 +152,7 @@
   Chat with <span id="friend-name">...</span> <span id="friend-status" style="font-weight: normal; font-size: 14px;">(offline)</span>
 </header>
 
-<div id="chat-container">
-  <div id="typing-indicator" class="typing-indicator">
-    <span id="friend-name-typing">Friend</span> is typing
-    <span class="typing-dots">
-      <span></span>
-      <span></span>
-      <span></span>
-    </span>
-  </div>
-</div>
+<div id="chat-container"></div>
 
 <div id="input-area">
   <input type="text" id="message-input" placeholder="Type a message..." />
@@ -284,15 +280,43 @@ socket.on('messages-seen', (info) => {
 
 socket.on('user-typing', (data) => {
   if (data.userId === friendId) {
-    const typingIndicator = document.getElementById('typing-indicator');
-    if (data.isTyping) {
-      typingIndicator.style.display = 'block';
-      scrollToBottom();
-    } else {
-      typingIndicator.style.display = 'none';
-    }
+    showTypingIndicator(data.isTyping);
   }
 });
+
+function showTypingIndicator(isTyping) {
+  let typingIndicator = document.getElementById('typing-indicator');
+  
+  if (isTyping) {
+    // Remove existing typing indicator if any
+    if (typingIndicator) {
+      typingIndicator.remove();
+    }
+    
+    // Create new typing indicator
+    typingIndicator = document.createElement('div');
+    typingIndicator.id = 'typing-indicator';
+    typingIndicator.className = 'typing-indicator';
+    typingIndicator.innerHTML = `
+      <span id="friend-name-typing">${document.getElementById('friend-name').textContent}</span> is typing
+      <span class="typing-dots">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+    `;
+    
+    // Add to chat container
+    chatContainer.appendChild(typingIndicator);
+    typingIndicator.style.display = 'block';
+    scrollToBottom();
+  } else {
+    // Remove typing indicator
+    if (typingIndicator) {
+      typingIndicator.remove();
+    }
+  }
+}
 
 function markMessagesAsSeen() {
   // Only mark messages as seen if there are unseen messages from friend
