@@ -35,32 +35,27 @@ io.on('connection', (socket) => {
     io.emit('online-users', Object.keys(onlineUsers));
   });
 
-  socket.on('chat-message', async (msg) => {
-    const newMsg = new Message({
-      from: msg.from,
-      to: msg.to,
-      text: msg.text
-    });
-    await newMsg.save();
-
-    // Check if recipient is online and in the chat
-    const recipientSocketId = onlineUsers[msg.to];
-    let seen = false;
-    
-    if (recipientSocketId) {
-      // We'll let the client decide if they can see it
-      seen = false;
-    }
-
-    const messageToSend = {
-      ...msg,
-      timestamp: newMsg.timestamp,
-      seen: seen,
-      _id: newMsg._id
-    };
-
-    io.emit('chat-message', messageToSend);
+socket.on('chat-message', async (msg) => {
+  const newMsg = new Message({
+    from: msg.from,
+    to: msg.to,
+    text: msg.text
   });
+  await newMsg.save();
+
+  // Get sender info to include in the message
+  const sender = await User.findById(msg.from).select('fullname username');
+
+  const messageToSend = {
+    ...msg,
+    timestamp: newMsg.timestamp,
+    seen: false,
+    _id: newMsg._id,
+    senderInfo: sender // Add this for better notifications
+  };
+
+  io.emit('chat-message', messageToSend);
+});
 
   socket.on('mark-seen', async ({ from, to }) => {
     console.log(`📖 Marking messages as seen: from ${from} to ${to}`);
